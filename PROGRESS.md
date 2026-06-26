@@ -24,11 +24,28 @@
 
 ---
 
-## Module 1 — Demo Database ⬜ NOT STARTED
+## Module 1 — Demo Database ✅ DONE
 
-**Plan:** Schema for customers, orders, products, order_items, marketing_campaigns (with intentionally ambiguous columns: status, segment, channel) → CREATE TABLEs → Faker population (~50-100 rows/table) → visual verification.
+**What's done:**
+- Schema designed and created: 5 tables — `customers`, `orders`, `products`, `order_items`, `marketing_campaigns`
+- Faker-based generator populated: 80 customers, 60 products, 15 marketing_campaigns, 100 orders, ~300 order_items
+- Verified internal consistency: order `total_amount` matches sum of its `order_items`; order dates can't precede the customer's signup date; order `status` correlates with order age (no "pending" order from 11 months ago); campaign `end_date` only populated for "completed" campaigns
+- Committed and pushed to GitHub: `schema.sql`, `generate_demo_data.py`
+- Fixed a `.gitignore` encoding bug (file was saved as UTF-16, which silently broke the `.env` exclusion pattern) — confirmed `.env` is now actually ignored via `git check-ignore -v .env`
 
-**Done when:** demo DB fully populated, queries return sensible/consistent data.
+**Key decisions / deviations from plan:**
+- Built two deliberate ambiguity traps into the schema, beyond just vague column names — these are the actual eval target for Module 4 (Business Analyst):
+  - **`channel`** exists in both `orders` (`web`/`mobile_app`/`marketplace`/`in_store`) and `marketing_campaigns` (`email`/`social_media`/`paid_search`/`affiliate`) — no FK between the two tables, and the value sets don't overlap. Tests whether the agent falsely infers a relationship between same-named columns vs. correctly flags it as unconfirmed.
+  - **`status`** exists in 4 tables (`customers`, `products`, `orders`, `marketing_campaigns`), each with a different value set/lifecycle. Tests whether the agent gives table-specific explanations instead of one generic "status tracks record state" answer for all four.
+  - `segment` (customers only) is a simpler, single-table naming ambiguity — not a cross-table trap.
+- `marketing_campaigns` intentionally has no FK to any other table (see `channel` trap above).
+- Data-consistency bugs found and fixed during build (none of these affect the traps above): campaign `end_date` no longer set for active/paused campaigns; `order_date` can't predate `customers.signup_date`; `orders.status` now derives from order age instead of being picked independently of date.
+- Known simplification, not a bug: `order_items.unit_price` uses the product's *current* price, not a historical price-at-order-time. Out of scope for the hackathon.
+
+**Key files:**
+- `schema.sql` — CREATE TABLE statements for all 5 tables
+- `generate_demo_data.py` — Faker population script (run after `schema.sql`; drops and recreates tables each run)
+- `.gitignore` — `venv/`, `.env`, `__pycache__/`, `*.pyc`
 
 ---
 
