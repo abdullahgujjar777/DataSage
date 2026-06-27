@@ -49,7 +49,35 @@
 
 ---
 
-## Module 2 — Connector Layer ⬜ NOT STARTED
+## Module 2 — Connector Layer ✅ DONE
+
+**What's done:**
+- Pydantic models (`ColumnInfo`, `TableSchema`, `SampleRow`) in `models/schema_models.py`
+- Read-only Postgres role `datasage_reader` created via `sql/create_readonly_role.sql`; verified read succeeds, write fails (`DELETE` → permission denied)
+- Singleton SQLAlchemy engine (`get_engine()`) in `connectors/postgres.py` — pooled, cached at module level (`global _engine`), credentials from `.env`
+- `get_schema(engine)` — auto-discovers tables/columns/types/PKs, declared FKs only (no heuristic/name-based FK inference, by design — preserves Module 1's `channel`/`status` ambiguity traps)
+- `sample_rows(engine, table_name, limit=8)` — real sample rows per table, returns `list[SampleRow]`
+- `test_connector.py` — standalone integration test across all 5 tables; confirmed real FKs detected correctly, both `channel` traps correctly show `FK: None`
+
+**Key decisions / deviations from plan:**
+- Rejected warehouse-agnostic abstraction (BaseConnector/Factory/ConnectionConfig) from a parallel planning chat — kept function-based design; abstracting before a second warehouse exists means guessing at the interface
+- Rejected tracing/fixtures infra for this module — premature with two functions; revisit if Module 3/4 chaining makes failures hard to localize
+- Rejected column-name-based FK inference heuristic — would falsely link `channel` trap columns before Agent 2 reasons about them, defeating the Module 1 eval
+- Engine made a true module-level singleton (not just "created once") — needed since CrewAI tools (Module 3) will call `get_engine()` repeatedly per run
+
+**Key files:**
+- `connectors/postgres.py` — `get_engine()`, `get_schema()`, `sample_rows()`
+- `models/schema_models.py` — `ColumnInfo`, `TableSchema`, `SampleRow`
+- `sql/create_readonly_role.sql` — read-only role setup (record only, already applied)
+- `test_connector.py` — standalone test script
+
+---
+
+## On the horizon (deferred, not urgent)
+- **PII masking enhancement (Module 7):** plan is column-name pattern matching only; real DLP/Macie/Purium-style tools also do content-based regex matching on sample values to catch PII in non-obvious columns (`notes`, `bio`, etc.) — log as known limitation + extension path in README, not required for submission
+- **Documentation depth control (Module 4/6):** ask user once, pre-scan, if they're familiar with the data → feeds Agent 2's prompt as a mode switch (thorough vs concise) → later exposed as a Module 6 UI toggle. Cheap: it's a prompt-template branch, not new infra.
+
+
 ## Module 3 — Agent 1: Schema Scout ⬜ NOT STARTED
 ## Module 4 — Agent 2: Business Analyst ⬜ NOT STARTED
 ## Module 5 — Agent 3: Data Concierge ⬜ NOT STARTED
