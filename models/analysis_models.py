@@ -1,0 +1,21 @@
+from pydantic import BaseModel, Field
+
+class ColumnMeaning(BaseModel):
+    column: str
+    meaning: str
+
+class AmbiguityFlag(BaseModel):
+    column: str
+    note: str
+
+class TableAnalysis(BaseModel):
+    table_name: str
+    purpose: str
+    column_meanings: list[ColumnMeaning]
+    relationships: str
+    business_value: str
+    ambiguity_flags: list[AmbiguityFlag] = Field(default_factory=list)
+
+class SchemaAnalysis(BaseModel):
+    generated_at: str
+    tables: list[TableAnalysis]
