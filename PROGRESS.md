@@ -78,7 +78,40 @@
 - **Documentation depth control (Module 4/6):** ask user once, pre-scan, if they're familiar with the data → feeds Agent 2's prompt as a mode switch (thorough vs concise) → later exposed as a Module 6 UI toggle. Cheap: it's a prompt-template branch, not new infra.
 
 
-## Module 3 — Agent 1: Schema Scout ⬜ NOT STARTED
+## Module 3 — Agent 1: Schema Scout ✅ DONE
+
+**What's done:**
+- CrewAI Agent ("Database Schema Collector") wired to a single consolidated tool
+  (`collect_schema_and_samples`) wrapping Module 2's connector functions — one tool
+  call returns schema + 8 sample rows for all 5 tables, not 5 separate calls
+- LLM: Fireworks `gpt-oss-120b` via `crewai.LLM` (`openai/` model prefix required for
+  correct litellm routing through a custom `base_url`)
+- Worked around CrewAI bug #5886: `cache_breakpoint` gets injected into every message
+  regardless of provider, but only the Anthropic adapter strips it back out — Fireworks
+  rejects the unknown field. Fixed via a monkeypatch on `crewai.llms.cache.mark_cache_breakpoint`.
+- Found this model/CrewAI combo unreliable at *actually* invoking the tool — it would
+  fabricate a plausible but entirely fictional schema instead of calling the function
+  (matches known CrewAI issue #3154). Fixed with a Task **guardrail** that re-fetches the
+  live schema from the DB and checks the agent's claimed output against it — automatic
+  retry on mismatch, no hardcoded table/column names anywhere
+- Verified end-to-end: correct output for all 5 tables, FK detection intact, `channel`/
+  `status` ambiguity traps preserved (no false FK inferred between `orders.channel` and
+  `marketing_campaigns.channel`)
+
+**Key decisions / deviations from plan:**
+- Rejected trusting raw LLM output — added a guardrail instead of hardcoding expected
+  table names, so it stays correct if the schema changes later (e.g. Module 8)
+- Accepted a known cost tradeoff: guardrail retries (up to 3) cost extra Fireworks tokens
+  vs. the originally planned single clean call — model doesn't reliably tool-call on
+  attempt 1
+
+**Key files:**
+- `tools/schema_tools.py` — `_collect_schema_and_samples()` (plain fn) + `collect_schema_and_samples`
+  (CrewAI tool wrapper)
+- `agents/schema_scout.py` — LLM config, Agent, guardrail, Task, Crew
+- `test_schema_scout.py` — standalone test
+
+
 ## Module 4 — Agent 2: Business Analyst ⬜ NOT STARTED
 ## Module 5 — Agent 3: Data Concierge ⬜ NOT STARTED
 ## Module 6 — Streamlit UI ⬜ NOT STARTED
