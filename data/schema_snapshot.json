@@ -1,0 +1,585 @@
+{
+  "generated_at": "2026-06-29T12:02:13.171462+00:00",
+  "tables": [
+    {
+      "table_name": "marketing_campaigns",
+      "columns": [
+        {
+          "name": "campaign_id",
+          "type": "INTEGER",
+          "nullable": false,
+          "is_primary_key": true,
+          "foreign_key": null
+        },
+        {
+          "name": "campaign_name",
+          "type": "VARCHAR(200)",
+          "nullable": true,
+          "is_primary_key": false,
+          "foreign_key": null
+        },
+        {
+          "name": "channel",
+          "type": "VARCHAR(50)",
+          "nullable": true,
+          "is_primary_key": false,
+          "foreign_key": null
+        },
+        {
+          "name": "start_date",
+          "type": "DATE",
+          "nullable": true,
+          "is_primary_key": false,
+          "foreign_key": null
+        },
+        {
+          "name": "end_date",
+          "type": "DATE",
+          "nullable": true,
+          "is_primary_key": false,
+          "foreign_key": null
+        },
+        {
+          "name": "budget",
+          "type": "NUMERIC(10, 2)",
+          "nullable": true,
+          "is_primary_key": false,
+          "foreign_key": null
+        },
+        {
+          "name": "status",
+          "type": "VARCHAR(50)",
+          "nullable": true,
+          "is_primary_key": false,
+          "foreign_key": null
+        }
+      ],
+      "sample_rows": [
+        {
+          "campaign_id": 1,
+          "campaign_name": "Deploy Best-Of-Breed Portals",
+          "channel": "social_media",
+          "start_date": "2024-07-30",
+          "end_date": "2024-08-17",
+          "budget": "9988.94",
+          "status": "completed"
+        },
+        {
+          "campaign_id": 2,
+          "campaign_name": "Scale Real-Time Content",
+          "channel": "social_media",
+          "start_date": "2025-03-15",
+          "end_date": null,
+          "budget": "16358.70",
+          "status": "paused"
+        },
+        {
+          "campaign_id": 3,
+          "campaign_name": "Embrace Granular Initiatives",
+          "channel": "affiliate",
+          "start_date": "2024-12-31",
+          "end_date": null,
+          "budget": "19221.42",
+          "status": "active"
+        },
+        {
+          "campaign_id": 4,
+          "campaign_name": "Incubate Cross-Media Schemas",
+          "channel": "paid_search",
+          "start_date": "2025-04-03",
+          "end_date": "2025-05-28",
+          "budget": "8447.59",
+          "status": "completed"
+        },
+        {
+          "campaign_id": 5,
+          "campaign_name": "Repurpose Revolutionary Schemas",
+          "channel": "paid_search",
+          "start_date": "2024-10-11",
+          "end_date": null,
+          "budget": "6008.14",
+          "status": "active"
+        },
+        {
+          "campaign_id": 6,
+          "campaign_name": "Enable One-To-One E-Business",
+          "channel": "email",
+          "start_date": "2026-03-06",
+          "end_date": null,
+          "budget": "19557.23",
+          "status": "active"
+        },
+        {
+          "campaign_id": 7,
+          "campaign_name": "Re-Intermediate End-To-End Experiences",
+          "channel": "affiliate",
+          "start_date": "2026-01-03",
+          "end_date": "2026-01-26",
+          "budget": "15615.20",
+          "status": "completed"
+        },
+        {
+          "campaign_id": 8,
+          "campaign_name": "Unleash Compelling Solutions",
+          "channel": "email",
+          "start_date": "2024-10-28",
+          "end_date": "2024-12-06",
+          "budget": "6742.61",
+          "status": "completed"
+        }
+      ]
+    },
+    {
+      "table_name": "customers",
+      "columns": [
+        {
+          "name": "customer_id",
+          "type": "INTEGER",
+          "nullable": false,
+          "is_primary_key": true,
+          "foreign_key": null
+        },
+        {
+          "name": "email",
+          "type": "VARCHAR(255)",
+          "nullable": false,
+          "is_primary_key": false,
+          "foreign_key": null
+        },
+        {
+          "name": "first_name",
+          "type": "VARCHAR(100)",
+          "nullable": true,
+          "is_primary_key": false,
+          "foreign_key": null
+        },
+        {
+          "name": "last_name",
+          "type": "VARCHAR(100)",
+          "nullable": true,
+          "is_primary_key": false,
+          "foreign_key": null
+        },
+        {
+          "name": "signup_date",
+          "type": "DATE",
+          "nullable": true,
+          "is_primary_key": false,
+          "foreign_key": null
+        },
+        {
+          "name": "country",
+          "type": "VARCHAR(100)",
+          "nullable": true,
+          "is_primary_key": false,
+          "foreign_key": null
+        },
+        {
+          "name": "segment",
+          "type": "VARCHAR(50)",
+          "nullable": true,
+          "is_primary_key": false,
+          "foreign_key": null
+        },
+        {
+          "name": "status",
+          "type": "VARCHAR(50)",
+          "nullable": true,
+          "is_primary_key": false,
+          "foreign_key": null
+        }
+      ],
+      "sample_rows": [
+        {
+          "customer_id": 1,
+          "email": "jason03@example.net",
+          "first_name": "Lisa",
+          "last_name": "Diaz",
+          "signup_date": "2024-10-11",
+          "country": "Palestinian Territory",
+          "segment": "at_risk",
+          "status": "inactive"
+        },
+        {
+          "customer_id": 2,
+          "email": "april04@example.org",
+          "first_name": "Joshua",
+          "last_name": "Bailey",
+          "signup_date": "2024-05-11",
+          "country": "Kenya",
+          "segment": "new",
+          "status": "inactive"
+        },
+        {
+          "customer_id": 3,
+          "email": "paul61@example.com",
+          "first_name": "Stephen",
+          "last_name": "Ward",
+          "signup_date": "2024-09-10",
+          "country": "Bahamas",
+          "segment": "at_risk",
+          "status": "active"
+        },
+        {
+          "customer_id": 4,
+          "email": "briannamorgan@example.com",
+          "first_name": "Kenneth",
+          "last_name": "Ryan",
+          "signup_date": "2025-08-26",
+          "country": "Gibraltar",
+          "segment": "regular",
+          "status": "inactive"
+        },
+        {
+          "customer_id": 5,
+          "email": "hwalter@example.com",
+          "first_name": "Brandi",
+          "last_name": "Carson",
+          "signup_date": "2024-06-13",
+          "country": "Nicaragua",
+          "segment": "high_value",
+          "status": "churned"
+        },
+        {
+          "customer_id": 6,
+          "email": "shawn81@example.org",
+          "first_name": "Michael",
+          "last_name": "Clay",
+          "signup_date": "2026-04-13",
+          "country": "Cameroon",
+          "segment": "high_value",
+          "status": "inactive"
+        },
+        {
+          "customer_id": 7,
+          "email": "rmiller@example.net",
+          "first_name": "Marie",
+          "last_name": "Morales",
+          "signup_date": "2024-01-09",
+          "country": "Azerbaijan",
+          "segment": "regular",
+          "status": "inactive"
+        },
+        {
+          "customer_id": 8,
+          "email": "anthonythompson@example.net",
+          "first_name": "Laura",
+          "last_name": "Gonzalez",
+          "signup_date": "2025-07-08",
+          "country": "British Virgin Islands",
+          "segment": "at_risk",
+          "status": "inactive"
+        }
+      ]
+    },
+    {
+      "table_name": "orders",
+      "columns": [
+        {
+          "name": "order_id",
+          "type": "INTEGER",
+          "nullable": false,
+          "is_primary_key": true,
+          "foreign_key": null
+        },
+        {
+          "name": "customer_id",
+          "type": "INTEGER",
+          "nullable": true,
+          "is_primary_key": false,
+          "foreign_key": "customers.customer_id"
+        },
+        {
+          "name": "order_date",
+          "type": "TIMESTAMP",
+          "nullable": true,
+          "is_primary_key": false,
+          "foreign_key": null
+        },
+        {
+          "name": "status",
+          "type": "VARCHAR(50)",
+          "nullable": true,
+          "is_primary_key": false,
+          "foreign_key": null
+        },
+        {
+          "name": "channel",
+          "type": "VARCHAR(50)",
+          "nullable": true,
+          "is_primary_key": false,
+          "foreign_key": null
+        },
+        {
+          "name": "total_amount",
+          "type": "NUMERIC(10, 2)",
+          "nullable": true,
+          "is_primary_key": false,
+          "foreign_key": null
+        }
+      ],
+      "sample_rows": [
+        {
+          "order_id": 1,
+          "customer_id": 75,
+          "order_date": "2026-05-07 06:58:49",
+          "status": "cancelled",
+          "channel": "in_store",
+          "total_amount": "1417.45"
+        },
+        {
+          "order_id": 2,
+          "customer_id": 20,
+          "order_date": "2025-09-01 07:18:23",
+          "status": "refunded",
+          "channel": "in_store",
+          "total_amount": "3605.19"
+        },
+        {
+          "order_id": 3,
+          "customer_id": 10,
+          "order_date": "2026-03-02 10:42:00",
+          "status": "refunded",
+          "channel": "marketplace",
+          "total_amount": "1290.11"
+        },
+        {
+          "order_id": 4,
+          "customer_id": 6,
+          "order_date": "2026-05-26 18:43:36",
+          "status": "refunded",
+          "channel": "mobile_app",
+          "total_amount": "1597.44"
+        },
+        {
+          "order_id": 5,
+          "customer_id": 74,
+          "order_date": "2026-06-12 19:27:05",
+          "status": "refunded",
+          "channel": "in_store",
+          "total_amount": "2469.40"
+        },
+        {
+          "order_id": 6,
+          "customer_id": 26,
+          "order_date": "2026-02-01 02:44:10",
+          "status": "cancelled",
+          "channel": "web",
+          "total_amount": "148.14"
+        },
+        {
+          "order_id": 7,
+          "customer_id": 6,
+          "order_date": "2026-04-18 03:46:44",
+          "status": "cancelled",
+          "channel": "web",
+          "total_amount": "936.47"
+        },
+        {
+          "order_id": 8,
+          "customer_id": 25,
+          "order_date": "2026-03-01 18:44:10",
+          "status": "delivered",
+          "channel": "in_store",
+          "total_amount": "1572.76"
+        }
+      ]
+    },
+    {
+      "table_name": "order_items",
+      "columns": [
+        {
+          "name": "order_item_id",
+          "type": "INTEGER",
+          "nullable": false,
+          "is_primary_key": true,
+          "foreign_key": null
+        },
+        {
+          "name": "order_id",
+          "type": "INTEGER",
+          "nullable": true,
+          "is_primary_key": false,
+          "foreign_key": "orders.order_id"
+        },
+        {
+          "name": "product_id",
+          "type": "INTEGER",
+          "nullable": true,
+          "is_primary_key": false,
+          "foreign_key": "products.product_id"
+        },
+        {
+          "name": "quantity",
+          "type": "INTEGER",
+          "nullable": true,
+          "is_primary_key": false,
+          "foreign_key": null
+        },
+        {
+          "name": "unit_price",
+          "type": "NUMERIC(10, 2)",
+          "nullable": true,
+          "is_primary_key": false,
+          "foreign_key": null
+        }
+      ],
+      "sample_rows": [
+        {
+          "order_item_id": 1,
+          "order_id": 1,
+          "product_id": 7,
+          "quantity": 1,
+          "unit_price": "135.72"
+        },
+        {
+          "order_item_id": 2,
+          "order_id": 1,
+          "product_id": 55,
+          "quantity": 2,
+          "unit_price": "393.55"
+        },
+        {
+          "order_item_id": 3,
+          "order_id": 1,
+          "product_id": 17,
+          "quantity": 1,
+          "unit_price": "247.43"
+        },
+        {
+          "order_item_id": 4,
+          "order_id": 1,
+          "product_id": 24,
+          "quantity": 3,
+          "unit_price": "82.40"
+        },
+        {
+          "order_item_id": 5,
+          "order_id": 2,
+          "product_id": 39,
+          "quantity": 1,
+          "unit_price": "140.70"
+        },
+        {
+          "order_item_id": 6,
+          "order_id": 2,
+          "product_id": 14,
+          "quantity": 4,
+          "unit_price": "337.10"
+        },
+        {
+          "order_item_id": 7,
+          "order_id": 2,
+          "product_id": 30,
+          "quantity": 2,
+          "unit_price": "359.39"
+        },
+        {
+          "order_item_id": 8,
+          "order_id": 2,
+          "product_id": 6,
+          "quantity": 3,
+          "unit_price": "456.55"
+        }
+      ]
+    },
+    {
+      "table_name": "products",
+      "columns": [
+        {
+          "name": "product_id",
+          "type": "INTEGER",
+          "nullable": false,
+          "is_primary_key": true,
+          "foreign_key": null
+        },
+        {
+          "name": "product_name",
+          "type": "VARCHAR(200)",
+          "nullable": true,
+          "is_primary_key": false,
+          "foreign_key": null
+        },
+        {
+          "name": "category",
+          "type": "VARCHAR(100)",
+          "nullable": true,
+          "is_primary_key": false,
+          "foreign_key": null
+        },
+        {
+          "name": "price",
+          "type": "NUMERIC(10, 2)",
+          "nullable": true,
+          "is_primary_key": false,
+          "foreign_key": null
+        },
+        {
+          "name": "status",
+          "type": "VARCHAR(50)",
+          "nullable": true,
+          "is_primary_key": false,
+          "foreign_key": null
+        }
+      ],
+      "sample_rows": [
+        {
+          "product_id": 1,
+          "product_name": "Ameliorated upward-trending throughput",
+          "category": "beauty",
+          "price": "49.28",
+          "status": "active"
+        },
+        {
+          "product_id": 2,
+          "product_name": "Proactive reciprocal adapter",
+          "category": "toys",
+          "price": "210.80",
+          "status": "discontinued"
+        },
+        {
+          "product_id": 3,
+          "product_name": "Persevering composite help-desk",
+          "category": "toys",
+          "price": "129.99",
+          "status": "out_of_stock"
+        },
+        {
+          "product_id": 4,
+          "product_name": "Multi-layered asynchronous paradigm",
+          "category": "home_goods",
+          "price": "370.12",
+          "status": "out_of_stock"
+        },
+        {
+          "product_id": 5,
+          "product_name": "Mandatory exuding core",
+          "category": "sports",
+          "price": "45.69",
+          "status": "out_of_stock"
+        },
+        {
+          "product_id": 6,
+          "product_name": "User-friendly responsive standardization",
+          "category": "apparel",
+          "price": "456.55",
+          "status": "discontinued"
+        },
+        {
+          "product_id": 7,
+          "product_name": "Focused 24/7 productivity",
+          "category": "toys",
+          "price": "135.72",
+          "status": "out_of_stock"
+        },
+        {
+          "product_id": 8,
+          "product_name": "Re-engineered homogeneous leverage",
+          "category": "apparel",
+          "price": "187.30",
+          "status": "discontinued"
+        }
+      ]
+    }
+  ]
+}
