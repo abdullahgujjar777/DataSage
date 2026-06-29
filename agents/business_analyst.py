@@ -7,6 +7,10 @@ from crewai.llm import LLM
 
 from models.analysis_models import TableAnalysis, SchemaAnalysis
 
+from dotenv import load_dotenv
+load_dotenv()
+
+
 SNAPSHOT_PATH = Path("data/schema_snapshot.json")
 OUTPUT_PATH = Path("data/schema_analysis.json")
 
@@ -57,7 +61,7 @@ def _build_task(agent: Agent, table: dict) -> Task:
     )
 
 def run_analysis(snapshot_path: Path = SNAPSHOT_PATH) -> SchemaAnalysis:
-    snapshot = json.loads(snapshot_path.read_text())
+    snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
 
     analyst = Agent(
         role="Business Analyst",
@@ -70,7 +74,11 @@ def run_analysis(snapshot_path: Path = SNAPSHOT_PATH) -> SchemaAnalysis:
     tasks = [_build_task(analyst, table) for table in snapshot["tables"]]
     Crew(agents=[analyst], tasks=tasks, process=Process.sequential).kickoff()
 
-    table_analyses = [t.output.pydantic for t in tasks]
+    table_analyses = []
+    for t in tasks:
+        if t.output.pydantic is None:
+            raise ValueError(f"Failed to parse structured output:\n{t.output.raw}")
+        table_analyses.append(t.output.pydantic)
 
     return SchemaAnalysis(
         generated_at=datetime.now(timezone.utc).isoformat(),
@@ -78,10 +86,16 @@ def run_analysis(snapshot_path: Path = SNAPSHOT_PATH) -> SchemaAnalysis:
     )
 
 def write_analysis(analysis: SchemaAnalysis, path: Path = OUTPUT_PATH) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(analysis.model_dump_json(indent=2))
+     path.parent.mkdir(parents=True, exist_ok=True)
+     path.write_text(analysis.model_dump_json(indent=2), encoding="utf-8")
+
+
+
+from markdown_renderer import render_markdown
 
 if __name__ == "__main__":
     analysis = run_analysis()
     write_analysis(analysis)
+    Path("data/documentation.md").write_text(render_markdown(analysis), encoding="utf-8")
     print(f"Wrote analysis for {len(analysis.tables)} tables to {OUTPUT_PATH}")
+

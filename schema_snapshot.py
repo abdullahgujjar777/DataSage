@@ -31,7 +31,7 @@ def write_snapshot(data: list[dict], path: Path = OUTPUT_PATH) -> None:
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "tables": data,
     }
-    path.write_text(json.dumps(payload, indent=2, default=str))  # default=str handles Decimal/date
+    path.write_text(json.dumps(payload, indent=2, default=str), encoding="utf-8") # default=str handles Decimal/date
 
 
 if __name__ == "__main__":
