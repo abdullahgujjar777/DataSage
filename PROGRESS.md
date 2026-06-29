@@ -104,7 +104,48 @@
 - `test_schema_snapshot.py` — standalone test
 
 
-## Module 4 — Agent 2: Business Analyst ⬜ NOT STARTED
+## Module 4 — Agent 2: Business Analyst ✅ DONE
+
+**What's done:**
+- Pydantic models: `TableAnalysis`, `ColumnMeaning`, `AmbiguityFlag`, `SchemaAnalysisDraft`
+  (LLM output, no metadata), `SchemaAnalysis` (saved output, adds `generated_at`) in
+  `models/analysis_models.py`
+- `agents/business_analyst.py` — single Agent, single Task, single LLM call analyzing all
+  5 tables at once (not 5 separate per-table calls) — cuts Fireworks usage ~5x and gives the
+  model cross-table visibility needed to reason about same-named columns
+- `markdown_renderer.py` — pure Python, `render_markdown(analysis)`, zero LLM calls
+- `render_docs.py` — regenerates `documentation.md` from cached `data/schema_analysis.json`,
+  zero LLM calls, so markdown formatting iteration never touches the API budget
+- Verified end-to-end: `data/schema_analysis.json` (5 tables) → `data/documentation.md`,
+  both reviewed
+
+**Key decisions / deviations from plan:**
+- Switched from 5 separate per-table LLM calls to 1 combined call across the whole schema —
+  cheaper, and the only way to give the model visibility into both `channel` columns at once
+- Split `SchemaAnalysisDraft` (LLM-facing, no `generated_at`) from `SchemaAnalysis`
+  (disk-facing, adds `generated_at` after the call) — LLM was never asked to invent a
+  timestamp it can't know
+- `render_docs.py` added as a free, no-LLM rendering path separate from `run_analysis()`
+
+**Eval results (channel/status/segment traps from Module 1):**
+- `channel` trap: ✅ caught — `orders` and `marketing_campaigns` explicitly flag the
+  same-named column in the other table, no FK, different value sets, no false link
+- `status` trap: ✅ caught — ambiguous across all 4 tables, table-specific meanings
+- `segment` trap (customers): ⚠️ not flagged — model confidently picked one interpretation
+  without surfacing the tier/RFM alternative from the schema comment. Sample values
+  plausibly support one reading, so may be a reasonable resolution rather than a miss —
+  logged as the one trap where "confidently wrong" risk wasn't tested. Not blocking.
+
+**Key files:**
+- `models/analysis_models.py` — `TableAnalysis`, `ColumnMeaning`, `AmbiguityFlag`,
+  `SchemaAnalysisDraft`, `SchemaAnalysis`
+- `agents/business_analyst.py` — `run_analysis()`, `write_analysis()`
+- `markdown_renderer.py` — `render_markdown()`
+- `render_docs.py` — `load_analysis()`, no-LLM doc regeneration
+- `data/schema_analysis.json` — generated output, Module 5's input
+- `data/documentation.md` — final rendered doc
+
+
 ## Module 5 — Agent 3: Data Concierge ⬜ NOT STARTED
 ## Module 6 — Streamlit UI ⬜ NOT STARTED
 ## Module 7 — Privacy Layer ⬜ NOT STARTED

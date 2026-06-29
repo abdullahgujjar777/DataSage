@@ -1,17 +1,17 @@
 {
-  "generated_at": "2026-06-29T14:25:13.118122+00:00",
+  "generated_at": "2026-06-29T17:35:21.174824+00:00",
   "tables": [
     {
       "table_name": "marketing_campaigns",
-      "purpose": "Stores information about each marketing campaign, including its name, channel, schedule, budget, and current status.",
+      "purpose": "Tracks each marketing campaign with its details and outcomes.",
       "column_meanings": [
         {
           "column": "campaign_id",
-          "meaning": "Unique identifier for each marketing campaign."
+          "meaning": "Unique identifier for a marketing campaign."
         },
         {
           "column": "campaign_name",
-          "meaning": "Descriptive name of the campaign."
+          "meaning": "Descriptive name given to the campaign."
         },
         {
           "column": "channel",
@@ -19,195 +19,158 @@
         },
         {
           "column": "start_date",
-          "meaning": "Date when the campaign started or is scheduled to start."
+          "meaning": "Date the campaign began or is scheduled to begin."
         },
         {
           "column": "end_date",
-          "meaning": "Date when the campaign ended or is scheduled to end; may be null for ongoing or unscheduled campaigns."
+          "meaning": "Date the campaign ended or is scheduled to end; may be null for ongoing campaigns."
         },
         {
           "column": "budget",
-          "meaning": "Monetary amount allocated for the campaign."
+          "meaning": "Monetary budget allocated to the campaign."
         },
         {
           "column": "status",
-          "meaning": "Current lifecycle state of the campaign (e.g., active, paused, completed)."
+          "meaning": "Current lifecycle status of the campaign (e.g., active, completed, paused)."
         }
       ],
-      "relationships": "",
-      "business_value": "Enables reporting on which campaigns have been run, their budgets, channels, and whether they are active, paused, or completed, supporting performance and spend analysis.",
+      "relationships": "None",
+      "business_value": "Enables analysis of campaign performance, budgeting, and channel effectiveness across time.",
       "ambiguity_flags": [
         {
-          "column": "budget",
-          "note": "Currency of the monetary amount is not specified."
+          "column": "channel",
+          "note": "The column name 'channel' also appears in the orders table with different observed values (in_store, marketplace, mobile_app). No foreign key links; meaning is ambiguous across tables."
         },
         {
           "column": "status",
-          "note": "Exact definitions of status values (active, paused, completed) are not described."
-        },
-        {
-          "column": "end_date",
-          "note": "Null may indicate an ongoing campaign or a campaign with no scheduled end; intent is unclear."
+          "note": "The column name 'status' appears in customers, orders, and products tables with differing value sets and no foreign key relationship, so its specific meaning is ambiguous."
         }
       ]
     },
     {
       "table_name": "customers",
-      "purpose": "Stores basic information about each customer, including contact details, sign‑up date, location, and business‑defined classifications of segment and status.",
+      "purpose": "Stores basic profile information for each customer.",
       "column_meanings": [
         {
           "column": "customer_id",
-          "meaning": "Unique identifier for each customer."
+          "meaning": "Unique identifier for a customer."
         },
         {
           "column": "email",
-          "meaning": "Customer's email address used for contact and identification."
+          "meaning": "Customer's email address, used as a contact identifier."
         },
         {
           "column": "first_name",
-          "meaning": "Customer's given (first) name; may be null."
+          "meaning": "Customer's given name."
         },
         {
           "column": "last_name",
-          "meaning": "Customer's family (last) name; may be null."
+          "meaning": "Customer's family name."
         },
         {
           "column": "signup_date",
-          "meaning": "Date the customer record was created or the customer signed up."
+          "meaning": "Date the customer account was created."
         },
         {
           "column": "country",
-          "meaning": "Country where the customer is located."
+          "meaning": "Country associated with the customer."
         },
         {
           "column": "segment",
-          "meaning": "Business‑defined grouping of customers (e.g., new, at_risk, regular, high_value)."
+          "meaning": "Marketing segment classification (e.g., new, at_risk, regular, high_value)."
         },
         {
           "column": "status",
-          "meaning": "Current relationship state of the customer (e.g., active, inactive, churned)."
+          "meaning": "Current account status (e.g., active, inactive, churned)."
         }
       ],
-      "relationships": "",
-      "business_value": "Enables analysis of the customer base by geography, acquisition date, segment, and activity status, supporting targeting, retention, and churn monitoring.",
+      "relationships": "None",
+      "business_value": "Provides a basis for segmentation, targeting, and lifecycle management of the customer base.",
       "ambiguity_flags": [
         {
-          "column": "segment",
-          "note": "Exact criteria that place a customer into a segment are not evident from the data."
-        },
-        {
           "column": "status",
-          "note": "Definitions of status values (active, inactive, churned) are not described."
-        },
-        {
-          "column": "signup_date",
-          "note": "Future dates appear (e.g., 2025‑08‑26); it is unclear whether this column represents planned sign‑ups or data entry errors."
+          "note": "The column name 'status' also appears in marketing_campaigns, orders, and products tables with different value sets and no foreign key relationship, making its precise meaning ambiguous across tables."
         }
       ]
     },
     {
       "table_name": "orders",
-      "purpose": "Records each sales order placed by a customer, capturing when it occurred, how it was placed, its current processing state, and the monetary total.",
+      "purpose": "Records each purchase transaction made by customers.",
       "column_meanings": [
         {
           "column": "order_id",
-          "meaning": "System‑generated unique identifier for the order record."
+          "meaning": "Unique identifier for an order."
         },
         {
           "column": "customer_id",
-          "meaning": "Reference to the customer who placed the order (links to customers.customer_id)."
+          "meaning": "Reference to the customer who placed the order."
         },
         {
           "column": "order_date",
-          "meaning": "Date and time when the order was created or processed."
+          "meaning": "Timestamp when the order was created."
         },
         {
           "column": "status",
-          "meaning": "Current lifecycle state of the order (e.g., cancelled, refunded, etc.)."
+          "meaning": "Current state of the order (e.g., cancelled, refunded)."
         },
         {
           "column": "channel",
-          "meaning": "Medium through which the order was received (e.g., in_store, marketplace, mobile_app)."
+          "meaning": "Sales channel through which the order was placed (e.g., in_store, marketplace, mobile_app)."
         },
         {
           "column": "total_amount",
-          "meaning": "Monetary value of the order total."
+          "meaning": "Total monetary value of the order."
         }
       ],
-      "relationships": "orders.customer_id → customers.customer_id (many‑to‑one relationship linking each order to the customer who placed it).",
-      "business_value": "Enables analysis of sales volume, order outcomes, and channel performance, supporting revenue tracking and operational reporting.",
+      "relationships": "customer_id references customers.customer_id",
+      "business_value": "Allows tracking of sales volume, channel performance, and order fulfillment outcomes.",
       "ambiguity_flags": [
         {
           "column": "status",
-          "note": "Possible values observed are 'cancelled' and 'refunded'; full set of status codes and their meanings are not documented."
+          "note": "The column name 'status' also exists in marketing_campaigns, customers, and products tables with differing values and no foreign key relationship; its meaning is ambiguous across tables."
         },
         {
           "column": "channel",
-          "note": "Observed values include 'in_store', 'marketplace', 'mobile_app'; the complete list of channels and their definitions are unknown."
-        },
-        {
-          "column": "total_amount",
-          "note": "Currency of the monetary amount is not specified."
-        },
-        {
-          "column": "order_date",
-          "note": "Column is nullable; unclear whether null indicates missing data, future orders, or other special cases."
+          "note": "The column name 'channel' also appears in marketing_campaigns with different observed values (social_media, affiliate, paid_search). No foreign key links; meaning is ambiguous across tables."
         }
       ]
     },
     {
       "table_name": "order_items",
-      "purpose": "Stores each line item belonging to a sales order, linking the order to a product and capturing how many units were ordered and the price per unit.",
+      "purpose": "Details the individual products included in each order.",
       "column_meanings": [
         {
           "column": "order_item_id",
-          "meaning": "Unique identifier for the line item record."
+          "meaning": "Unique identifier for an order line item."
         },
         {
           "column": "order_id",
-          "meaning": "Reference to the order that this line item belongs to (FK to orders.order_id)."
+          "meaning": "Reference to the order that contains this item."
         },
         {
           "column": "product_id",
-          "meaning": "Reference to the product being purchased (FK to products.product_id)."
+          "meaning": "Reference to the product being purchased."
         },
         {
           "column": "quantity",
-          "meaning": "Number of units of the product included in this line item."
+          "meaning": "Number of units of the product in this line item."
         },
         {
           "column": "unit_price",
-          "meaning": "Price per single unit of the product at the time of the order."
+          "meaning": "Price per unit of the product at the time of the order."
         }
       ],
-      "relationships": "order_items.order_id → orders.order_id (many‑to‑one); order_items.product_id → products.product_id (many‑to‑one).",
-      "business_value": "Enables analysis of what products are sold in each order, quantities sold, and revenue per product, supporting sales performance and inventory planning.",
-      "ambiguity_flags": [
-        {
-          "column": "order_id",
-          "note": "Column is nullable; unclear why a line item might exist without an associated order."
-        },
-        {
-          "column": "product_id",
-          "note": "Column is nullable; unclear why a line item might exist without a linked product."
-        },
-        {
-          "column": "quantity",
-          "note": "Nullable quantity could indicate missing data or optional line items; reason not evident."
-        },
-        {
-          "column": "unit_price",
-          "note": "Currency of the monetary amount is not specified; also unclear whether price includes tax or discounts."
-        }
-      ]
+      "relationships": "order_id references orders.order_id; product_id references products.product_id",
+      "business_value": "Enables analysis of product-level sales, average order value, and inventory demand.",
+      "ambiguity_flags": []
     },
     {
       "table_name": "products",
-      "purpose": "Stores each product’s identifying information, its category, price and current availability status.",
+      "purpose": "Catalogues items that can be sold.",
       "column_meanings": [
         {
           "column": "product_id",
-          "meaning": "System-generated unique identifier for the product."
+          "meaning": "Unique identifier for a product."
         },
         {
           "column": "product_name",
@@ -215,27 +178,23 @@
         },
         {
           "column": "category",
-          "meaning": "Business-defined grouping or segment the product belongs to."
+          "meaning": "Category or group the product belongs to."
         },
         {
           "column": "price",
-          "meaning": "Monetary price of the product (currency not indicated)."
+          "meaning": "Standard selling price of the product."
         },
         {
           "column": "status",
-          "meaning": "Current availability status of the product (e.g., active, discontinued, out_of_stock)."
+          "meaning": "Current availability status (e.g., active, discontinued, out_of_stock)."
         }
       ],
-      "relationships": "",
-      "business_value": "Enables reporting on what products exist, how they are priced and categorized, and which are currently sellable, supporting inventory and sales analysis.",
+      "relationships": "product_id referenced by order_items.product_id",
+      "business_value": "Supports product inventory management, pricing strategy, and category performance reporting.",
       "ambiguity_flags": [
         {
-          "column": "price",
-          "note": "Currency of the price amount is not specified."
-        },
-        {
           "column": "status",
-          "note": "Exact meanings of status values (active, discontinued, out_of_stock) are not described."
+          "note": "The column name 'status' also appears in marketing_campaigns, customers, and orders tables with different value sets and no foreign key relationship, so its precise meaning is ambiguous across tables."
         }
       ]
     }

@@ -17,5 +17,10 @@ class TableAnalysis(BaseModel):
     ambiguity_flags: list[AmbiguityFlag] = Field(default_factory=list)
 
 class SchemaAnalysis(BaseModel):
+    """What gets saved to disk — metadata added by us, not the LLM."""
     generated_at: str
+    tables: list[TableAnalysis]
+
+class SchemaAnalysisDraft(BaseModel):
+    """What the LLM returns — no metadata it can't know."""
     tables: list[TableAnalysis]
