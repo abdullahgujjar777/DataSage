@@ -104,6 +104,8 @@
 - `test_schema_snapshot.py` — standalone test
 
 
+
+
 ## Module 4 — Agent 2: Business Analyst ✅ DONE
 
 **What's done:**
@@ -111,35 +113,49 @@
   (LLM output, no metadata), `SchemaAnalysis` (saved output, adds `generated_at`) in
   `models/analysis_models.py`
 - `agents/business_analyst.py` — single Agent, single Task, single LLM call analyzing all
-  5 tables at once (not 5 separate per-table calls) — cuts Fireworks usage ~5x and gives the
-  model cross-table visibility needed to reason about same-named columns
+  5 tables at once — ~5x cheaper than per-table calls, gives the model cross-table visibility
+- `build_cross_table_index()` — deterministic Python precomputation: finds every column name
+  shared across 2+ tables with no FK, with sampled values per table and overlap, grouped by
+  column name (not pairwise) so each table gets ONE consolidated flag per colliding column
+  instead of one per other table sharing the name
 - `markdown_renderer.py` — pure Python, `render_markdown(analysis)`, zero LLM calls
 - `render_docs.py` — regenerates `documentation.md` from cached `data/schema_analysis.json`,
   zero LLM calls, so markdown formatting iteration never touches the API budget
-- Verified end-to-end: `data/schema_analysis.json` (5 tables) → `data/documentation.md`,
-  both reviewed
+- Verified end-to-end across 3 prompt iterations (see below); final run confirmed clean
 
 **Key decisions / deviations from plan:**
-- Switched from 5 separate per-table LLM calls to 1 combined call across the whole schema —
-  cheaper, and the only way to give the model visibility into both `channel` columns at once
+- Switched from 5 separate per-table LLM calls to 1 combined call — cheaper, and the only
+  way to give the model visibility into both `channel` columns at once
 - Split `SchemaAnalysisDraft` (LLM-facing, no `generated_at`) from `SchemaAnalysis`
-  (disk-facing, adds `generated_at` after the call) — LLM was never asked to invent a
-  timestamp it can't know
+  (disk-facing) — LLM never asked to invent a timestamp it can't know
+- Cross-table collision detection moved from "ask the model to notice it" to deterministic
+  Python checklist injected into the prompt — turns an open-ended task into a closed one,
+  scales better as table count grows (Module 8 relevance)
+- Index grouped by column name (not pairwise per table-pair) after pairwise version caused
+  `status` (4 tables) to generate 3 redundant flags per table instead of 1, and made the
+  model falsely flag "active" (a generic shared word) as a possible undeclared relationship
+  between unrelated tables (customers/products/marketing_campaigns) — fixed by surfacing all
+  colliding tables together and adding explicit guidance to treat small/generic overlaps as
+  coincidental, not relational
 - `render_docs.py` added as a free, no-LLM rendering path separate from `run_analysis()`
 
-**Eval results (channel/status/segment traps from Module 1):**
-- `channel` trap: ✅ caught — `orders` and `marketing_campaigns` explicitly flag the
-  same-named column in the other table, no FK, different value sets, no false link
-- `status` trap: ✅ caught — ambiguous across all 4 tables, table-specific meanings
-- `segment` trap (customers): ⚠️ not flagged — model confidently picked one interpretation
-  without surfacing the tier/RFM alternative from the schema comment. Sample values
-  plausibly support one reading, so may be a reasonable resolution rather than a miss —
-  logged as the one trap where "confidently wrong" risk wasn't tested. Not blocking.
+**Eval results (channel/status/segment traps from Module 1) — final run:**
+- `channel` trap: ✅ caught — correctly flagged as different concepts, no false link
+- `status` trap: ✅ caught — one consolidated flag per table, correctly dismisses "active"
+  overlap as coincidental rather than a relationship signal
+- `segment` trap: ✅ caught — flags the undefined criteria behind segment labels
+
+**Known operational note:** hit a transient Windows DNS resolution failure
+(`getaddrinfo failed`) mid-run once — confirmed as a local network blip (unrelated host
+`telemetry.crewai.com` also failed to resolve in the same run), not a Fireworks outage or
+code bug. No code changes made for it; real retry/error handling is already scoped for
+Module 8.
 
 **Key files:**
 - `models/analysis_models.py` — `TableAnalysis`, `ColumnMeaning`, `AmbiguityFlag`,
   `SchemaAnalysisDraft`, `SchemaAnalysis`
-- `agents/business_analyst.py` — `run_analysis()`, `write_analysis()`
+- `agents/business_analyst.py` — `run_analysis()`, `write_analysis()`,
+  `build_cross_table_index()`
 - `markdown_renderer.py` — `render_markdown()`
 - `render_docs.py` — `load_analysis()`, no-LLM doc regeneration
 - `data/schema_analysis.json` — generated output, Module 5's input

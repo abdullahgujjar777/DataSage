@@ -8,6 +8,8 @@ from dotenv import load_dotenv
 
 from models.analysis_models import SchemaAnalysisDraft, SchemaAnalysis
 
+from collections import defaultdict
+
 load_dotenv()
 
 SNAPSHOT_PATH = Path("data/schema_snapshot.json")
@@ -15,27 +17,150 @@ OUTPUT_PATH = Path("data/schema_analysis.json")
 DOCS_PATH = Path("data/documentation.md")
 
 PROMPT_TEMPLATE = """You are a business analyst documenting an entire database schema for a non-technical audience.
-
+ 
 You are given ALL tables in the schema at once, specifically so you can reason across tables —
-not just within one. Use that.
-
+not just within one.
+ 
+<tables>
 {tables_block}
-
-Rules:
-- Base every claim ONLY on the columns and samples given. Never invent business context.
-- Give each column a short, table-specific meaning. No generic definitions.
-- "FK=None" means NO confirmed relationship. If a column name (e.g. "channel" or "status")
-  appears in more than one table above with no FK between them, check whether their value
-  sets even overlap. If they don't, or there's no FK, explicitly flag it as ambiguous in BOTH
-  tables and say so in the note (e.g. "channel here means web/app/in-store; a same-named
-  column exists in marketing_campaigns but refers to email/social/paid_search — no confirmed
-  relationship between them").
-- If a column's meaning is genuinely unclear from the data alone, put it in ambiguity_flags
-  with the competing interpretations. Do not pick one and present it confidently.
-- relationships: only describe links backed by an actual FK in the column list above.
-- business_value: 1-2 sentences per table.
-- Return exactly one TableAnalysis per table listed above, same order, same table_name.
+</tables>
+ 
+<cross_table_column_collisions>
+Precomputed from the schema: every column name that appears in 2+ tables with no FK between
+them, with their sampled values in each table and how many overlap. This is your checklist —
+every line here must produce a matching ambiguity_flags entry in every table named on that
+line. Don't report a collision that isn't listed here, and don't skip one that is. If this
+says "(no cross-table column-name collisions found)", skip cross-table ambiguity entirely —
+don't invent one.
+ 
+{cross_table_index_block}
+</cross_table_column_collisions>
+ 
+<process>
+Work in two passes, in order.
+1. Table by table: for each table, read its columns and sample rows on their own terms and
+   draft purpose, column_meanings, business_value, relationships, and any single-table
+   ambiguity. Do this before comparing tables to each other, so per-table detail doesn't get
+   diluted by cross-table comparison.
+2. Cross-table audit: go through <cross_table_column_collisions> line by line and add the
+   corresponding ambiguity_flags entries to the tables involved.
+</process>
+ 
+<rules>
+- Base every claim ONLY on the columns and samples given. Never invent business context. 10
+  sample rows is a small set — phrase overlap or meaning claims as observations about the
+  sample ("in the sampled rows...") rather than as universal claims about the column.
+- Write every output field in plain, non-technical language. Terms like FK, NULL, or enum are
+  fine in your own reasoning but must not appear in purpose, column_meanings, business_value,
+  or ambiguity_flags — describe what's actually going on instead (e.g. "no linked table
+  confirms this" rather than "FK=None").
+ 
+- purpose: 2 sentences. Sentence 1 names the real-world entity or event this table records —
+  or, if it's a reference/lookup table rather than a transactional record, says so plainly
+  (e.g. "This table is a lookup of valid order statuses."). Sentence 2 names the specific
+  states, attributes, or lifecycle this table tracks — be concrete (e.g. "tracks whether a
+  campaign is active, paused, or completed"), not vague ("tracks details and outcomes").
+ 
+- column_meanings: short, table-specific. No generic definitions. State units or currency
+  when they're evident from the data; if they're not evident, that's a single-table ambiguity
+  flag, not a column_meanings note.
+ 
+- business_value: 1-2 sentences naming the actual business questions this table's specific
+  columns can answer (e.g. "which channels drive the most revenue", not "supports analysis").
+  If a table is a simple lookup/reference table with little standalone business value, say
+  that in one sentence rather than manufacturing value the data doesn't support — that would
+  break the "never invent" rule above.
+ 
+- ambiguity_flags: check BOTH categories below for every table, not just one — a table can
+  have flags from both at once, so don't stop after finding one. For every flag, state the
+  competing interpretations; do not pick one and present it as settled.
+  (a) Single-table: undefined units/currency, unclear meaning of NULL, undocumented value
+      sets, anything in the sample data that looks inconsistent or unexplained.
+  (b) Cross-table: every line in <cross_table_column_collisions> involving this table.
+      - No overlap in sampled values: the columns likely mean different things despite the
+        shared name. Name the other table and its values (e.g. "channel here means
+        web/app/in-store; the same-named column in marketing_campaigns refers to
+        email/social/paid_search instead — no confirmed relationship between them").
+      - Some or full overlap in sampled values: don't describe them as unrelated. Say the
+        columns might be the same underlying concept without a declared link, and flag it as
+        a possible undeclared relationship rather than a naming coincidence.
+    Write exactly ONE ambiguity_flags entry per colliding column name
+    per table,summarizing its relationship to all other tables sharing
+    that name together — not one entry per other table.
+    
+- relationships: only describe links backed by an actual FK in the column list above. Never
+  infer one from a shared column name alone.
+ 
+- Return exactly one TableAnalysis per table listed in <tables>, same order, same table_name.
+  Do not merge, omit, or invent tables.
+</rules>
+ 
+<example>
+Table "orders" (order_id, customer_id [FK -> customers.customer_id], channel, status, amount)
+and table "marketing_campaigns" (campaign_id, channel, spend), no FK between their "channel"
+columns. orders.channel sampled as web/app/in-store; marketing_campaigns.channel sampled as
+email/social/paid_search — no overlap.
+ 
+purpose: "This table records individual customer purchase transactions. It tracks each
+order's sales channel, current status, and amount at time of purchase."
+ 
+column_meanings: channel describes where the purchase was placed (web, app, or in-store);
+status describes where the order currently sits in fulfillment (e.g. pending, shipped,
+delivered, based on the sampled values).
+ 
+business_value: "Answers which sales channel drives the most order volume and revenue, and
+how orders are currently distributed across fulfillment stages."
+ 
+ambiguity_flags: "channel here means web/app/in-store; the same-named column in
+marketing_campaigns refers to email/social/paid_search instead, with no FK linking them — they
+describe different things despite sharing a name."
+ 
+relationships: "customer_id links to customers.customer_id."
+</example>
 """
+
+
+
+def build_cross_table_index(tables: list[dict]) -> str:
+    name_to_tables = defaultdict(list)
+    for table in tables:
+        for col in table["columns"]:
+            if col["foreign_key"] is None:
+                name_to_tables[col["name"]].append(table["table_name"])
+
+    by_name = {t["table_name"]: t for t in tables}
+    lines = []
+    for col_name, table_names in name_to_tables.items():
+        if len(table_names) < 2:
+            continue
+        sampled_values = {
+            t: sorted({
+                row[col_name]
+                for row in by_name[t]["sample_rows"]
+                if col_name in row and row[col_name] is not None
+            })
+            for t in table_names
+        }
+        any_overlap = set()
+        for i in range(len(table_names)):
+            for j in range(i + 1, len(table_names)):
+                any_overlap |= set(sampled_values[table_names[i]]) & set(sampled_values[table_names[j]])
+
+        block = [f'- "{col_name}" appears in: ' +
+                 "; ".join(f"{t} {sampled_values[t]}" for t in table_names)]
+        if any_overlap:
+            block.append(
+                f"  shared value(s) somewhere across these: {sorted(any_overlap)} — "
+                f"if this is a small fraction of an otherwise disjoint set, treat as a "
+                f"coincidental generic word, not a relationship signal. Only call it a "
+                f"possible undeclared relationship if the overlap is substantial relative "
+                f"to the value sets, not a single common word like 'active'."
+            )
+        else:
+            block.append("  no shared values across any of these tables.")
+        lines.append("\n".join(block))
+
+    return "\n".join(lines) if lines else "(no cross-table column-name collisions found)"
 
 def _get_llm() -> LLM:
     return LLM(
@@ -55,8 +180,12 @@ def _format_table_block(table: dict) -> str:
 
 def _build_task(agent: Agent, tables: list[dict]) -> Task:
     tables_block = "\n\n".join(_format_table_block(t) for t in tables)
+    cross_table_index_block = build_cross_table_index(tables)
     return Task(
-        description=PROMPT_TEMPLATE.format(tables_block=tables_block),
+        description=PROMPT_TEMPLATE.format(
+            tables_block=tables_block,
+            cross_table_index_block=cross_table_index_block,
+        ),
         expected_output=f"A SchemaAnalysisDraft with exactly {len(tables)} TableAnalysis entries, one per table above, in order.",
         agent=agent,
         output_pydantic=SchemaAnalysisDraft,
