@@ -162,7 +162,56 @@ Module 8.
 - `data/documentation.md` — final rendered doc
 
 
-## Module 5 — Agent 3: Data Concierge ⬜ NOT STARTED
+
+
+## Module 5 — Agent 3: Data Concierge ✅ DONE
+
+**What's done:**
+
+
+`agents/data_concierge.py` — complete implementation:
+
+`_load_docs()` — flattens schema_analysis.json into a compact natural-language string for the prompt (cheaper tokens than raw JSON)
+`_get_llm()` — LangChain ChatOpenAI pointing at Fireworks endpoint (no CrewAI — single agent, single call, no orchestration needed)
+`_is_safe_sql()` — app-level SQL safety guard, rejects any non-SELECT before hitting the DB; defense-in-depth on top of the read-only DB role
+`_enforce_limit()` — strips trailing semicolons before subquery wrapping (prevents PostgreSQL syntax errors), skips wrapping for bare aggregates (COUNT/SUM/AVG/MIN/MAX with no GROUP BY) that always return one row
+`_execute_sql()` — runs validated SQL via datasage_reader engine, returns results as plain-text table, caps at 50 display rows
+`ask_question(question, history, docs_path)` — full public API: builds message list (system + history + question), calls LLM, parses responses array, executes SQL if present, returns list[dict]
+
+
+
+`drift_detector.py` — complete:
+
+`detect_drift()` — loads baseline snapshot, re-collects live from DB, diffs tables and columns (additions, removals, type changes, nullability changes)
+`format_drift_report()` — human-readable summary
+Fully deterministic, no LLM
+
+
+
+`test_data_concierge.py` — test suite verified: Mode A (doc-only), Mode B (Text-to-SQL), multi-turn, multi-part questions, Mode C (out of scope) all passing
+
+
+**Key decisions:**
+
+
+No CrewAI — Data Concierge is a single LLM call; CrewAI would add overhead with no benefit
+LangChain ChatOpenAI used directly — maps to Fireworks endpoint via OpenAI-compatible API
+`ask_question` returns `list[dict]` not a single dict — prompt handles multi-part questions and returns a responses array; each entry has `{mode, answer, sql, results}`
+Mode A/B/C classification before generation — forces the model to decide question type before answering; reduces hallucinated SQL and vague answers
+`results` is added by Python post-execution, not by the LLM — the LLM describes what results will show before they're retrieved; results appear in the next turn's history
+Chat history: LLMs are stateless — `history: list[dict]` is rebuilt into the message list on every call; caller owns the list and appends after each turn
+Schema drift detection is deterministic Python — no LLM needed; detecting structural changes is pure set-diff, not reasoning
+`_enforce_limit()` strips trailing semicolons before wrapping — LLM-generated SQL often includes a trailing semicolon which becomes a syntax error when embedded inside a subquery; stripping it at the enforcement layer fixes this without touching the LLM prompt
+
+
+**Key files:**
+
+
+`agents/data_concierge.py` — `ask_question()`, `_load_docs()`, `_is_safe_sql()`, `_enforce_limit()`, `_execute_sql()`
+`drift_detector.py` — `detect_drift()`, `format_drift_report()`
+`test_data_concierge.py`
+
+
 ## Module 6 — Streamlit UI ⬜ NOT STARTED
 ## Module 7 — Privacy Layer ⬜ NOT STARTED
 ## Module 8 — Scale & Robustness Testing ⬜ NOT STARTED

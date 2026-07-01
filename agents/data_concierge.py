@@ -184,13 +184,17 @@ def _is_safe_sql(sql: str) -> bool:
 
 
 def _enforce_limit(sql: str, cap: int = 100) -> str:
-    """
-    If the query has no LIMIT clause, wrap it as a subquery and add one.
-    Prevents runaway result sets regardless of what the model writes.
-    """
-    if not re.search(r'\bLIMIT\b', sql, re.IGNORECASE):
-        return f"SELECT * FROM ({sql}) AS _q LIMIT {cap}"
-    return sql
+    sql = sql.strip().rstrip(";").strip()
+    if re.search(r'\bLIMIT\b', sql, re.IGNORECASE):
+        return sql 
+    is_bare_aggregate = (
+        re.search(r'\b(COUNT|SUM|AVG|MIN|MAX)\s*\(', sql, re.IGNORECASE)
+        and not re.search(r'\bGROUP\s+BY\b', sql, re.IGNORECASE)
+    )
+    if is_bare_aggregate:
+        return sql
+    return f"SELECT * FROM ({sql}) AS _q LIMIT {cap}"
+
 
 
 def _execute_sql(sql: str, row_cap: int = 50) -> str:
