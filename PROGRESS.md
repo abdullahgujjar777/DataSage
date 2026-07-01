@@ -212,7 +212,46 @@ Schema drift detection is deterministic Python — no LLM needed; detecting stru
 `test_data_concierge.py`
 
 
-## Module 6 — Streamlit UI ⬜ NOT STARTED
+## Module 6 — Streamlit UI ✅ DONE
+
+**What's done:**
+
+
+`app.py` — single-file Streamlit app; run with streamlit run app.py
+Sidebar: DB connection form (host, port, database, user, password) pre-filled from
+`.env` via `dotenv_values()`; PII masking toggle (on by default, wired for Module 7);
+"⚡ Scan Database" primary button; last-scan timestamp shown from schema_analysis.json
+Scan flow: injects form values into `os.environ` before calling `run_analysis()` so
+the SQLAlchemy singleton picks up the correct credentials; runs under `st.spinner`;
+clears chat history on re-scan; shows clean error message on failure
+Documentation tab: renders `data/documentation.md` as Markdown
+Chat tab: full `st.chat_message` / `st.chat_input` loop; maintains conversation
+history in `st.session_state` in the format `ask_question()` expects; renders Mode B
+result sets as st.dataframe (with plain-text fallback); SQL in a collapsible expander;
+multi-part responses get mode badges and dividers
+Welcome screen: shown before first scan (`st.stop()` gates the tabs); explains the
+four-step scan process in plain language
+Session state: `history`, `scan_done`, `scan_error` — initialised once, persist
+across reruns within the session
+
+
+**Key decisions / deviations from plan:**
+
+
+`dotenv_values()` used for form pre-fill (reads file without mutating os.environ);
+`os.environ` only mutated at scan time — keeps the two concerns separate
+Chat history stored as [{"role": "user"|"assistant", "content": "..."}] — exactly the
+`format ask_question()` expects, so no translation layer needed
+`st.stop()` used to gate tabs before scan — cleaner than wrapping everything in an if
+
+
+**Key files:**
+
+
+`app.py` — entire UI; single file
+
+
+
 ## Module 7 — Privacy Layer ⬜ NOT STARTED
 ## Module 8 — Scale & Robustness Testing ⬜ NOT STARTED
 ## Module 9 — Submission Prep ⬜ NOT STARTED
