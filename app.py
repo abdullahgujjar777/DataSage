@@ -290,4 +290,4 @@ with tab_chat:
 
         # Append to history
         st.session_state.history.append({"role": "user",      "content": prompt})
-        st.session_state.history.append({"role": "assistant", "content": "\n\n".join(answer_parts)})
+        st.session_state.history.append({"role": "assistant", "content": json.dumps({"responses": responses})})
