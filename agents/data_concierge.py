@@ -19,12 +19,25 @@ load_dotenv()
 ANALYSIS_PATH = Path("data/schema_analysis.json")
 
 
+# Token-saving constants
+
+# 10 = 5 Q&A pairs. Beyond this, older turns are dropped entirely.
+HISTORY_WINDOW = 10
+# Older messages (still within the window) are compressed. 4 = last 2 Q&A pairs full — so follow-up SQL edits always have the original SQL in context.
+RECENT_FULL_COUNT = 4
+
+
+# LLM
 def _get_llm() -> ChatOpenAI:
     return ChatOpenAI(
         model=os.getenv("LLM_MODEL"),
         base_url=os.getenv("LLM_BASE_URL"),
         api_key=os.getenv("FIREWORKS_API_KEY"),
         temperature=0,
+        # Fireworks prompt caching: re-bills the system prompt + static docs at
+        # ~10% of normal token cost on cache hits. Silently ignored by providers
+        # that don't support it, so this is safe to leave on everywhere.
+        model_kwargs={"cache_prompt": True},
     )
 
 
@@ -46,7 +59,6 @@ def _load_docs(path: Path = ANALYSIS_PATH) -> str:
             lines.append(f"  ⚠️  {f['column']}: {f['note']}")
         lines.append("")
     return "\n".join(lines)
-
 
 
 # System prompt
@@ -166,10 +178,79 @@ no table names, no column names, no business logic, no data values.
 If something is genuinely unclear or absent from the documentation, respond in Mode C."""
 
 
+# History compression
+def _compress_turn(turn: dict) -> str:
+    """Compress a completed Q&A turn into a compact history entry.
+
+    For assistant turns: tries to parse the raw JSON response (if it was stored
+    that way), otherwise falls back to truncating the plain-text content.
+    For user turns: returned as-is (already short).
+
+    This keeps older context in the window at a fraction of the token cost.
+    """
+    if turn["role"] == "assistant":
+        try:
+            data = json.loads(turn["content"])
+            lines = []
+            for r in data.get("responses", []):
+                mode = r.get("mode", "?")
+                answer_snippet = r.get("answer", "")[:80]
+                sql = r.get("sql")
+                if mode == "B" and sql:
+                    lines.append(
+                        f"[Mode B] Q answered with SQL: {sql[:120]}... | Summary: {answer_snippet}"
+                    )
+                elif mode == "A":
+                    lines.append(f"[Mode A] Explained: {answer_snippet}")
+                else:
+                    lines.append(f"[Mode C] Out of scope: {answer_snippet}")
+            return "\n".join(lines)
+        except Exception:
+            # History stores plain text (not raw JSON) — just truncate
+            return turn["content"][:150]
+    return turn["content"]   # user messages stay as-is
+
+
+def _build_messages(
+    system_content: str,
+    history: list[dict],
+    question: str,
+) -> list:
+    """Build the LangChain message list with three token optimisations applied:
+
+    1. Prompt caching  — system message is first and static; the provider caches it.
+    2. Sliding window  — at most HISTORY_WINDOW messages from history are included;
+                         older ones are dropped entirely.
+    3. Compression     — messages outside RECENT_FULL_COUNT are compressed to ~150
+                         chars; the most recent RECENT_FULL_COUNT messages stay full
+                         so follow-up queries (e.g. "now filter by country") retain
+                         the SQL that was just generated.
+    """
+    messages = [SystemMessage(content=system_content)]
+
+    # Apply sliding window first
+    windowed = history[-HISTORY_WINDOW:]
+
+    for i, turn in enumerate(windowed):
+        # Distance from the END of the list (1 = most recent)
+        distance_from_end = len(windowed) - i
+        if distance_from_end > RECENT_FULL_COUNT:
+            content = _compress_turn(turn)
+        else:
+            content = turn["content"]
+
+        if turn["role"] == "user":
+            messages.append(HumanMessage(content=content))
+        else:
+            messages.append(AIMessage(content=content))
+
+    messages.append(HumanMessage(content=question))
+    return messages
+
+
 # SQL safety + execution
 def _is_safe_sql(sql: str) -> bool:
-    """
-    Defense-in-depth: reject anything that isn't a pure SELECT.
+    """Defense-in-depth: reject anything that isn't a pure SELECT.
     The read-only DB role already blocks writes at the DB layer —
     this catches it earlier and gives a cleaner error message.
     """
@@ -186,7 +267,7 @@ def _is_safe_sql(sql: str) -> bool:
 def _enforce_limit(sql: str, cap: int = 100) -> str:
     sql = sql.strip().rstrip(";").strip()
     if re.search(r'\bLIMIT\b', sql, re.IGNORECASE):
-        return sql 
+        return sql
     is_bare_aggregate = (
         re.search(r'\b(COUNT|SUM|AVG|MIN|MAX)\s*\(', sql, re.IGNORECASE)
         and not re.search(r'\bGROUP\s+BY\b', sql, re.IGNORECASE)
@@ -196,10 +277,9 @@ def _enforce_limit(sql: str, cap: int = 100) -> str:
     return f"SELECT * FROM ({sql}) AS _q LIMIT {cap}"
 
 
-
 def _execute_sql(sql: str, row_cap: int = 50) -> str:
     """Execute query via read-only engine; return results as a plain text table."""
-    sql = _enforce_limit(sql) 
+    sql = _enforce_limit(sql)
     try:
         engine = get_engine()
         with engine.connect() as conn:
@@ -224,11 +304,10 @@ def _execute_sql(sql: str, row_cap: int = 50) -> str:
 # Public API
 def ask_question(
     question: str,
-    history: list[dict],  # [{"role": "user"|"assistant", "content": "..."}]
+    history: list[dict],   # [{"role": "user"|"assistant", "content": "..."}]
     docs_path: Path = ANALYSIS_PATH,
 ) -> list[dict]:
-    """
-    Ask a question about the database.
+    """Ask a question about the database.
 
     Args:
         question:  The user's current question (may contain multiple sub-questions).
@@ -247,21 +326,17 @@ def ask_question(
             ...
         ]
 
-    Why a list:
-        The prompt handles multi-part messages by splitting them into independent entries.
-        A single "what is X and how many Y?" returns two entries — one Mode A, one Mode B.
-        Single questions still return a one-element list; callers always iterate.
+    Token optimisations applied on every call (all transparent to callers):
+        - cache_prompt=True passed to Fireworks → system prompt re-billed at ~10%
+          cost on cache hits
+        - History windowed to last HISTORY_WINDOW messages
+        - Messages older than RECENT_FULL_COUNT compressed to ~150 chars each
     """
     llm = _get_llm()
     docs = _load_docs(docs_path)
+    system_content = SYSTEM_PROMPT.format(docs=docs)
 
-    messages = [SystemMessage(content=SYSTEM_PROMPT.format(docs=docs))]
-    for turn in history:
-        if turn["role"] == "user":
-            messages.append(HumanMessage(content=turn["content"]))
-        else:
-            messages.append(AIMessage(content=turn["content"]))
-    messages.append(HumanMessage(content=question))
+    messages = _build_messages(system_content, history, question)
 
     raw = llm.invoke(messages)
 
@@ -272,7 +347,6 @@ def ask_question(
     try:
         parsed = json.loads(content)
     except json.JSONDecodeError:
-        # Model broke the JSON contract — wrap raw text as a single fallback entry.
         return [{"mode": "A", "answer": content, "sql": None, "results": None}]
 
     responses = parsed.get("responses", [])
