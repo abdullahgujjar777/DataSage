@@ -33,7 +33,9 @@ def get_engine() -> Engine:
         raise ConnectionError(f"Could not connect to database: {e.orig}") from e
     return _engine
 
-
+def reset_engine() -> None:
+    global _engine
+    _engine = None
 
 from sqlalchemy import inspect
 from models.schema_models import ColumnInfo, TableSchema

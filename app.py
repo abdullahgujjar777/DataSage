@@ -58,6 +58,9 @@ def _run_scan(host, port, dbname, user, password, pii_masking: bool = True):
     """Run the full Agent 2 pipeline and write artefacts to disk."""
     _apply_connection_to_env(host, port, dbname, user, password)
 
+    from connectors.postgres import reset_engine
+    reset_engine()
+
     # Re-import here so the updated env vars are visible when the modules load.
     from connectors.postgres import get_engine          # noqa: F401 — forces engine init
     from schema_snapshot import collect_schema_and_samples, write_snapshot
