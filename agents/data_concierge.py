@@ -37,7 +37,6 @@ def _get_llm() -> ChatOpenAI:
         # Fireworks prompt caching: re-bills the system prompt + static docs at
         # ~10% of normal token cost on cache hits. Silently ignored by providers
         # that don't support it, so this is safe to leave on everywhere.
-        model_kwargs={"cache_prompt": True},
     )
 
 
@@ -250,12 +249,12 @@ def _build_messages(
 
 # SQL safety + execution
 def _is_safe_sql(sql: str) -> bool:
-    """Defense-in-depth: reject anything that isn't a pure SELECT.
-    The read-only DB role already blocks writes at the DB layer —
-    this catches it earlier and gives a cleaner error message.
-    """
     cleaned = sql.strip().lstrip("(").upper()
-    if not cleaned.startswith("SELECT"):
+    # Allow CTEs: WITH ... AS (...) SELECT ...
+    if cleaned.startswith("WITH"):
+        # Must eventually resolve to a SELECT, not a mutation
+        pass
+    elif not cleaned.startswith("SELECT"):
         return False
     forbidden = [
         "INSERT", "UPDATE", "DELETE", "DROP", "ALTER",

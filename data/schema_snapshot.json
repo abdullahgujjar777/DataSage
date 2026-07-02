@@ -1,5 +1,6 @@
 {
-  "generated_at": "2026-06-29T12:02:13.171462+00:00",
+  "generated_at": "2026-07-02T06:27:22.849219+00:00",
+  "pii_masking_enabled": true,
   "tables": [
     {
       "table_name": "marketing_campaigns",
@@ -127,7 +128,8 @@
           "budget": "6742.61",
           "status": "completed"
         }
-      ]
+      ],
+      "pii_columns_masked": []
     },
     {
       "table_name": "customers",
@@ -192,9 +194,9 @@
       "sample_rows": [
         {
           "customer_id": 1,
-          "email": "jason03@example.net",
-          "first_name": "Lisa",
-          "last_name": "Diaz",
+          "email": "[MASKED]",
+          "first_name": "[MASKED]",
+          "last_name": "[MASKED]",
           "signup_date": "2024-10-11",
           "country": "Palestinian Territory",
           "segment": "at_risk",
@@ -202,9 +204,9 @@
         },
         {
           "customer_id": 2,
-          "email": "april04@example.org",
-          "first_name": "Joshua",
-          "last_name": "Bailey",
+          "email": "[MASKED]",
+          "first_name": "[MASKED]",
+          "last_name": "[MASKED]",
           "signup_date": "2024-05-11",
           "country": "Kenya",
           "segment": "new",
@@ -212,9 +214,9 @@
         },
         {
           "customer_id": 3,
-          "email": "paul61@example.com",
-          "first_name": "Stephen",
-          "last_name": "Ward",
+          "email": "[MASKED]",
+          "first_name": "[MASKED]",
+          "last_name": "[MASKED]",
           "signup_date": "2024-09-10",
           "country": "Bahamas",
           "segment": "at_risk",
@@ -222,9 +224,9 @@
         },
         {
           "customer_id": 4,
-          "email": "briannamorgan@example.com",
-          "first_name": "Kenneth",
-          "last_name": "Ryan",
+          "email": "[MASKED]",
+          "first_name": "[MASKED]",
+          "last_name": "[MASKED]",
           "signup_date": "2025-08-26",
           "country": "Gibraltar",
           "segment": "regular",
@@ -232,9 +234,9 @@
         },
         {
           "customer_id": 5,
-          "email": "hwalter@example.com",
-          "first_name": "Brandi",
-          "last_name": "Carson",
+          "email": "[MASKED]",
+          "first_name": "[MASKED]",
+          "last_name": "[MASKED]",
           "signup_date": "2024-06-13",
           "country": "Nicaragua",
           "segment": "high_value",
@@ -242,9 +244,9 @@
         },
         {
           "customer_id": 6,
-          "email": "shawn81@example.org",
-          "first_name": "Michael",
-          "last_name": "Clay",
+          "email": "[MASKED]",
+          "first_name": "[MASKED]",
+          "last_name": "[MASKED]",
           "signup_date": "2026-04-13",
           "country": "Cameroon",
           "segment": "high_value",
@@ -252,9 +254,9 @@
         },
         {
           "customer_id": 7,
-          "email": "rmiller@example.net",
-          "first_name": "Marie",
-          "last_name": "Morales",
+          "email": "[MASKED]",
+          "first_name": "[MASKED]",
+          "last_name": "[MASKED]",
           "signup_date": "2024-01-09",
           "country": "Azerbaijan",
           "segment": "regular",
@@ -262,14 +264,19 @@
         },
         {
           "customer_id": 8,
-          "email": "anthonythompson@example.net",
-          "first_name": "Laura",
-          "last_name": "Gonzalez",
+          "email": "[MASKED]",
+          "first_name": "[MASKED]",
+          "last_name": "[MASKED]",
           "signup_date": "2025-07-08",
           "country": "British Virgin Islands",
           "segment": "at_risk",
           "status": "inactive"
         }
+      ],
+      "pii_columns_masked": [
+        "email",
+        "first_name",
+        "last_name"
       ]
     },
     {
@@ -383,7 +390,8 @@
           "channel": "in_store",
           "total_amount": "1572.76"
         }
-      ]
+      ],
+      "pii_columns_masked": []
     },
     {
       "table_name": "order_items",
@@ -481,7 +489,8 @@
           "quantity": 3,
           "unit_price": "456.55"
         }
-      ]
+      ],
+      "pii_columns_masked": []
     },
     {
       "table_name": "products",
@@ -579,7 +588,8 @@
           "price": "187.30",
           "status": "discontinued"
         }
-      ]
+      ],
+      "pii_columns_masked": []
     }
   ]
 }

@@ -1,105 +1,105 @@
 # DataSage — Auto-Generated Documentation
 
-_Generated: 2026-06-30T16:21:38.044946+00:00_
+_Generated: 2026-07-02T06:27:43.405814+00:00_
 
 ## marketing_campaigns
 
-**Purpose:** This table records marketing campaigns that the company runs. It tracks each campaign's name, channel, start and end dates, budget, and current status such as active, paused, or completed.
+**Purpose:** This table records marketing campaign details. It tracks each campaign's name, channel, start and end dates, budget, and current status such as active, paused, or completed.
 
 **Columns:**
-- `campaign_id`: Unique identifier for each campaign.
-- `campaign_name`: Descriptive name of the campaign.
-- `channel`: The marketing channel used for the campaign (e.g., affiliate, email, paid search, social media).
+- `campaign_id`: Unique identifier for the campaign.
+- `campaign_name`: Descriptive title of the campaign.
+- `channel`: Medium used for the campaign, e.g., social_media, affiliate, paid_search.
 - `start_date`: Date the campaign began.
-- `end_date`: Date the campaign ended or is planned to end.
-- `budget`: Planned spending amount for the campaign (currency not specified).
-- `status`: Current lifecycle state of the campaign (e.g., active, paused, completed).
+- `end_date`: Date the campaign ended; may be null for ongoing campaigns.
+- `budget`: Allocated amount of money for the campaign, shown with two decimal places.
+- `status`: Current lifecycle stage of the campaign, such as active, paused, or completed.
 
-**Relationships:** None.
+**Relationships:** 
 
-**Business Value:** Answers which marketing channels are being used, how much is allocated to each campaign, and which campaigns are currently active, paused, or completed.
+**Business Value:** Enables analysis of how much money is allocated per campaign, which channels are used, and which campaigns are currently active or finished.
 
 **⚠️ Ambiguity Flags:**
-- `channel`: The channel column lists marketing distribution methods (affiliate, email, paid_search, social_media); the same‑named column in orders lists purchase locations (in_store, marketplace, mobile_app, web) and there is no declared link, so they describe different things.
-- `status`: The status column appears in several tables with different value sets; only the word “active” overlaps, which is a generic term, so the column likely has unrelated meanings across tables.
-- `budget`: The budget amount is given without any currency unit, so the monetary unit is unclear.
+- `channel`: channel here lists media types such as social_media, affiliate, paid_search; the same‑named column in orders lists places of purchase like in_store, marketplace, mobile_app, web – no overlapping values, so they likely represent different concepts.
+- `status`: status values observed are active, completed, paused; other tables also have a status column with values like active, inactive, churned, cancelled, refunded, discontinued, out_of_stock. The only common word is 'active', which is a generic term and likely coincidental rather than indicating a shared definition.
+- `budget`: budget appears as a numeric value with two decimals (e.g., 9988.94) but the currency or unit is not indicated in the data.
 
 ## customers
 
-**Purpose:** This table stores information about individual customers. It tracks each customer's contact details, signup date, country, segmentation label, and current account status.
+**Purpose:** This table records basic information about customers. It tracks each customer's email, name, signup date, country, segment classification, and current relationship status.
 
 **Columns:**
-- `customer_id`: Unique identifier for each customer.
+- `customer_id`: Unique identifier for the customer.
 - `email`: Customer's email address.
-- `first_name`: Given name of the customer.
-- `last_name`: Family name of the customer.
-- `signup_date`: Date the customer created their account.
-- `country`: Country or territory associated with the customer.
-- `segment`: Label indicating the customer's marketing segment (e.g., new, regular, high_value, at_risk).
-- `status`: Current account state such as active, inactive, or churned.
+- `first_name`: Customer's given (first) name.
+- `last_name`: Customer's family (last) name.
+- `signup_date`: Date the customer account was created.
+- `country`: Country where the customer is located.
+- `segment`: Business‑defined group such as new, regular, at_risk, high_value.
+- `status`: Current state of the customer's relationship, e.g., active, inactive, churned.
 
-**Relationships:** None.
+**Relationships:** 
 
-**Business Value:** Enables queries about how many customers are in each segment, which countries they belong to, and how many are active versus churned, supporting retention and targeting analysis.
+**Business Value:** Supports queries about customer demographics, segment distribution, and churn versus active status across regions.
 
 **⚠️ Ambiguity Flags:**
-- `status`: The status column appears in several tables with different value sets; only the word “active” overlaps, which is a generic term, so the column likely has unrelated meanings across tables.
-- `segment`: The segment values (new, regular, high_value, at_risk) are not defined in the data, so the criteria for each label are unclear.
+- `status`: status values seen are active, churned, inactive; other tables use status with different sets; only 'active' overlaps, considered a generic term and likely unrelated.
+- `segment`: segment categories (new, regular, at_risk, high_value) are not defined in the data, so their exact business meaning is unclear.
 
 ## orders
 
-**Purpose:** This table records each purchase order placed by customers. It tracks the order’s customer, date and time, sales channel, current fulfillment status, and total monetary amount.
+**Purpose:** This table records individual purchase orders placed by customers. It tracks the order date, sales channel, current processing status, and total monetary amount.
 
 **Columns:**
-- `order_id`: Unique identifier for each order.
-- `customer_id`: Reference to the customer who placed the order.
-- `order_date`: Date and time when the order was created.
-- `status`: Current fulfillment state of the order (e.g., cancelled, refunded, delivered).
-- `channel`: Sales channel where the order was made (e.g., in_store, marketplace, mobile_app, web).
-- `total_amount`: Total monetary value of the order (currency not specified).
+- `order_id`: Unique identifier for the order.
+- `customer_id`: Identifier of the customer who placed the order.
+- `order_date`: Timestamp when the order was created.
+- `status`: Current processing state of the order, such as cancelled or refunded.
+- `channel`: Sales channel where the purchase occurred, e.g., in_store, marketplace, mobile_app, web.
+- `total_amount`: Total monetary value of the order, shown with two decimal places.
 
 **Relationships:** customer_id links to customers.customer_id.
 
-**Business Value:** Shows which sales channels generate revenue, how many orders are cancelled or refunded, and total sales amount over time.
+**Business Value:** Answers which sales channels generate the most revenue, overall order volume, and how many orders are cancelled or refunded.
 
 **⚠️ Ambiguity Flags:**
-- `channel`: The channel column lists purchase locations (in_store, marketplace, mobile_app, web); the same‑named column in marketing_campaigns lists marketing distribution methods (affiliate, email, paid_search, social_media) and there is no declared link, so they describe different things.
-- `status`: The status column appears in several tables with different value sets; only the word “active” overlaps, which is a generic term, so the column likely has unrelated meanings across tables.
-- `total_amount`: The total amount is provided without a currency unit, making the monetary unit unclear.
+- `channel`: channel here lists purchase locations like in_store, marketplace, mobile_app, web; the channel column in marketing_campaigns lists media types such as social_media, affiliate, paid_search – no overlapping values, indicating different meanings.
+- `status`: status values observed are cancelled, refunded (and possibly delivered in other rows); other tables also have a status column with values like active, completed, paused, inactive, churned, discontinued, out_of_stock. Only 'active' overlaps across tables, which is a generic term and likely unrelated.
+- `total_amount`: total_amount is a numeric value with two decimals but the currency or unit is not specified in the data.
 
 ## order_items
 
-**Purpose:** This table lists the individual line items that belong to each order. It records which product was sold, how many units, and the price per unit at the time of the order.
+**Purpose:** This table records the individual line items that belong to each order. It tracks which product was sold, how many units, and the price per unit at the time of purchase.
 
 **Columns:**
-- `order_item_id`: Unique identifier for each line item.
-- `order_id`: Reference to the order this line belongs to.
-- `product_id`: Reference to the product that was purchased.
+- `order_item_id`: Unique identifier for the line‑item record.
+- `order_id`: Identifier of the parent order.
+- `product_id`: Identifier of the product that was purchased.
 - `quantity`: Number of units of the product in this line item.
-- `unit_price`: Price per single unit (currency not specified).
+- `unit_price`: Price per single unit, shown with two decimal places.
 
-**Relationships:** order_id links to orders.order_id. product_id links to products.product_id.
+**Relationships:** order_id links to orders.order_id; product_id links to products.product_id.
 
-**Business Value:** Allows calculation of revenue per product, average unit price, and quantity sold per order.
+**Business Value:** Allows calculation of revenue per product and analysis of purchase quantities across orders.
 
 **⚠️ Ambiguity Flags:**
-- `unit_price`: The unit price is given without a currency unit, so the monetary unit is unclear.
+- `unit_price`: unit_price is shown as a numeric amount with two decimals, but the currency or unit is not indicated.
 
 ## products
 
-**Purpose:** This table catalogs the products that can be sold. It records each product’s name, category, price, and availability status.
+**Purpose:** This table lists the products available for sale. It tracks each product's name, category, listed price, and current availability status.
 
 **Columns:**
-- `product_id`: Unique identifier for each product.
+- `product_id`: Unique identifier for the product.
 - `product_name`: Descriptive name of the product.
-- `category`: Broad classification such as beauty, toys, home_goods, sports.
-- `price`: Standard price of the product (currency not specified).
-- `status`: Current availability state (e.g., active, discontinued, out_of_stock).
+- `category`: Broad grouping of the product such as beauty, toys, home_goods, sports.
+- `price`: Listed price of the product, shown with two decimal places.
+- `status`: Current availability of the product, e.g., active, discontinued, out_of_stock.
 
-**Relationships:** None.
+**Relationships:** 
 
-**Business Value:** Supports analysis of product pricing across categories and which products are currently sellable versus discontinued or out of stock.
+**Business Value:** Supports queries about product pricing, category performance, and inventory status.
 
 **⚠️ Ambiguity Flags:**
-- `status`: The status column appears in several tables with different value sets; only the word “active” overlaps, which is a generic term, so the column likely has unrelated meanings across tables.
-- `price`: The price is listed without a currency unit, making the monetary unit unclear.
+- `status`: status values observed are active, discontinued, out_of_stock; other tables also have a status column with values like completed, paused, inactive, churned, cancelled, refunded. The only shared term is 'active', which is generic and likely unrelated.
+- `price`: price is a numeric amount with two decimals but the currency or unit is not specified in the data.
