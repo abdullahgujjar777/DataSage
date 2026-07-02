@@ -122,6 +122,32 @@ with st.sidebar:
         else:
             st.success("Scan complete!")
 
+
+    st.divider()
+
+    drift_btn = st.button("🔄 Check for Schema Drift", use_container_width=True)
+
+    if drift_btn:
+        if not ANALYSIS_PATH.exists():
+            st.warning("No baseline scan found. Run a scan first.")
+        else:
+            with st.spinner("Comparing schema against last scan…"):
+                try:
+                    _apply_connection_to_env(db_host, db_port, db_name, db_user, db_pass)
+                    from drift_detector import detect_drift, format_drift_report
+                    report = detect_drift()
+                    if report.has_drift:
+                        st.warning("⚠️ Schema drift detected")
+                        drift_lines = format_drift_report(report).splitlines()
+                        detail = "\n".join(drift_lines[3:])
+                        st.caption(detail)
+                        st.caption("Re-scan to update documentation.")
+                    else:
+                        st.success("✅ No drift — schema matches last scan.")
+                except Exception as exc:
+                    st.error(f"Drift check failed: {exc}")
+
+
     # Show last-scan timestamp + masking state if docs exist
     if ANALYSIS_PATH.exists():
         try:

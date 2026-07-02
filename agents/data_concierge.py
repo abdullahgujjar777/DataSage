@@ -12,6 +12,8 @@ from dotenv import load_dotenv
 
 from connectors.postgres import get_engine
 
+from langchain_core.exceptions import LangChainException
+
 import re
 
 load_dotenv()
@@ -337,7 +339,12 @@ def ask_question(
 
     messages = _build_messages(system_content, history, question)
 
-    raw = llm.invoke(messages)
+    try:
+        raw = llm.invoke(messages)
+    except LangChainException as e:
+        return [{"mode": "C", "answer": f"LLM call failed: {e}", "sql": None, "results": None}]
+    except Exception as e:
+        return [{"mode": "C", "answer": f"Unexpected error: {e}", "sql": None, "results": None}]
 
     # gpt-oss-120b quirk: reasoning tokens live in a separate field; use .content only.
     content = raw.content if isinstance(raw.content, str) else raw.content[0]["text"]
