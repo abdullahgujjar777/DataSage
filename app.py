@@ -2,6 +2,7 @@
 """
 DataSage — Streamlit UI
 Covers Module 6: connect, scan, documentation, and chat.
+Module 7: PII masking toggle wired through to snapshot collection.
 """
 
 import os
@@ -53,16 +54,21 @@ def _apply_connection_to_env(host, port, dbname, user, password):
     os.environ["DB_PASSWORD"] = password
 
 
-def _run_scan(host, port, dbname, user, password):
+def _run_scan(host, port, dbname, user, password, pii_masking: bool = True):
     """Run the full Agent 2 pipeline and write artefacts to disk."""
     _apply_connection_to_env(host, port, dbname, user, password)
 
-    # Re-import here so the updated env vars are visible when the modules load
-    # (important if the connector's singleton was never created yet this session).
+    # Re-import here so the updated env vars are visible when the modules load.
     from connectors.postgres import get_engine          # noqa: F401 — forces engine init
+    from schema_snapshot import collect_schema_and_samples, write_snapshot
     from agents.business_analyst import run_analysis, write_analysis
     from markdown_renderer import render_markdown
 
+    # Step 1: collect schema + samples, applying PII masking if enabled
+    data = collect_schema_and_samples(pii_masking=pii_masking)
+    write_snapshot(data, pii_masking=pii_masking)
+
+    # Step 2: run Agent 2 (Business Analyst) on the (possibly masked) snapshot
     analysis = run_analysis()
     write_analysis(analysis)
     DOCS_PATH.write_text(render_markdown(analysis), encoding="utf-8")
@@ -88,11 +94,11 @@ with st.sidebar:
     pii_masking = st.toggle(
         "PII Masking",
         value=True,
-        help="Mask email / phone / SSN-like values before sending samples to the AI. "
-             "Full implementation in Module 7 — toggle is wired and ready.",
+        help="Mask email addresses, names, phone numbers, and other sensitive sample "
+             "values before sending them to the AI. Matching is based on column names.",
     )
     if pii_masking:
-        st.caption("🛡️ PII masking **on** — sample values flagged as sensitive will be hidden.")
+        st.caption("🛡️ PII masking **on** — sensitive sample values will be hidden from the AI.")
     else:
         st.caption("⚠️ PII masking **off** — all sample values sent to the AI as-is.")
 
@@ -104,7 +110,8 @@ with st.sidebar:
         st.session_state.scan_error = None
         with st.spinner("Analysing schema — this takes 30–60 s…"):
             try:
-                _run_scan(db_host, db_port, db_name, db_user, db_pass)
+                _run_scan(db_host, db_port, db_name, db_user, db_pass,
+                          pii_masking=pii_masking)
                 st.session_state.scan_done  = True
                 st.session_state.history    = []   # fresh chat on re-scan
             except Exception as exc:
@@ -115,12 +122,30 @@ with st.sidebar:
         else:
             st.success("Scan complete!")
 
-    # Show last-scan timestamp if docs exist
+    # Show last-scan timestamp + masking state if docs exist
     if ANALYSIS_PATH.exists():
         try:
             meta = json.loads(ANALYSIS_PATH.read_text(encoding="utf-8"))
             ts   = meta.get("generated_at", "")[:19].replace("T", " ")
             st.caption(f"Last scan: {ts} UTC")
+        except Exception:
+            pass
+
+    # Show which columns were masked in the last snapshot
+    snapshot_path = Path("data/schema_snapshot.json")
+    if snapshot_path.exists():
+        try:
+            snap = json.loads(snapshot_path.read_text(encoding="utf-8"))
+            if snap.get("pii_masking_enabled"):
+                masked = {
+                    t["table_name"]: t.get("pii_columns_masked", [])
+                    for t in snap.get("tables", [])
+                    if t.get("pii_columns_masked")
+                }
+                if masked:
+                    with st.expander("🛡️ Masked columns", expanded=False):
+                        for table, cols in masked.items():
+                            st.caption(f"**{table}:** {', '.join(cols)}")
         except Exception:
             pass
 
@@ -137,8 +162,9 @@ if not st.session_state.scan_done:
         **What happens during a scan:**
         1. DataSage reads your schema — table names, column types, foreign keys
         2. It samples a handful of rows per table (never a full scan)
-        3. An AI analyst turns that into plain-English documentation
-        4. You get searchable docs + a chat assistant that knows your data
+        3. PII masking replaces sensitive sample values before anything reaches the AI
+        4. An AI analyst turns that into plain-English documentation
+        5. You get searchable docs + a chat assistant that knows your data
         """
     )
     st.stop()
@@ -210,7 +236,6 @@ with tab_chat:
 
                 if results:
                     with st.expander("Query Results", expanded=True):
-                        # Try to render as a table if it looks tabular
                         lines = results.strip().splitlines()
                         if len(lines) >= 3 and " | " in lines[0]:
                             try:
@@ -218,12 +243,11 @@ with tab_chat:
                                 cols = [c.strip() for c in lines[0].split(" | ")]
                                 rows = [
                                     [c.strip() for c in line.split(" | ")]
-                                    for line in lines[2:]   # skip header + divider
+                                    for line in lines[2:]
                                     if line.strip() and "showing" not in line
                                 ]
                                 df = pd.DataFrame(rows, columns=cols)
                                 st.dataframe(df, use_container_width=True)
-                                # Show truncation note if present
                                 if any("showing" in l for l in lines):
                                     note = next(l for l in lines if "showing" in l)
                                     st.caption(note.strip())
@@ -235,6 +259,6 @@ with tab_chat:
                 if i < len(responses) - 1:
                     st.divider()
 
-        # Append to history (assistant content = all answer text joined)
+        # Append to history
         st.session_state.history.append({"role": "user",      "content": prompt})
         st.session_state.history.append({"role": "assistant", "content": "\n\n".join(answer_parts)})
