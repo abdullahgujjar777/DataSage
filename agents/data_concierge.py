@@ -36,147 +36,58 @@ def _get_llm() -> ChatOpenAI:
         base_url=os.getenv("LLM_BASE_URL"),
         api_key=os.getenv("FIREWORKS_API_KEY"),
         temperature=0,
-        # Fireworks prompt caching: re-bills the system prompt + static docs at
-        # ~10% of normal token cost on cache hits. Silently ignored by providers
-        # that don't support it, so this is safe to leave on everywhere.
     )
 
 
 # Documentation context builder
 def _load_docs(path: Path = ANALYSIS_PATH) -> str:
-    """Flatten schema_analysis.json into a compact readable string for the prompt."""
     data = json.loads(path.read_text(encoding="utf-8"))
     lines = []
     for t in data["tables"]:
-        lines.append(f"Table: {t['table_name']}")
-        lines.append(f"  Purpose: {t['purpose']}")
-        col_block = "; ".join(
-            f"{c['column']} ({c['meaning']})" for c in t["column_meanings"]
-        )
-        lines.append(f"  Columns: {col_block}")
-        if t.get("relationships"):
-            lines.append(f"  Relationships: {t['relationships']}")
-        for f in t.get("ambiguity_flags", []):
-            lines.append(f"  ⚠️  {f['column']}: {f['note']}")
-        lines.append("")
-    return "\n".join(lines)
+        cols = ", ".join(f"{c['column']}({c['meaning']})" for c in t["column_meanings"])
+        rel = t.get("relationships", "").strip()
+        flags = "; ".join(f"⚠{f['column']}: {f['note']}" for f in t.get("ambiguity_flags", []))
+        entry = f"[{t['table_name']}] {t['purpose']}\nCols: {cols}"
+        if rel:
+            entry += f"\nFK: {rel}"
+        if flags:
+            entry += f"\n{flags}"
+        lines.append(entry)
+    return "\n---\n".join(lines)
 
 
 # System prompt
-SYSTEM_PROMPT = """You are DataSage, an analytical assistant for a business database.
-Your job: answer data questions using the documentation below, and write safe, precise SQL
-when real figures are needed.
+SYSTEM_PROMPT = """You are DataSage, a database assistant. Answer questions using the documentation below, writing SQL only when real data is needed.
 
 <database_documentation>
 {docs}
 </database_documentation>
 
-=======================================
-STEP 1 — CLASSIFY THE QUESTION
-=======================================
-Before responding, choose exactly one mode:
+CLASSIFY each question:
+- MODE A: fully answered by the docs (schema structure, column meanings, relationships) — no SQL
+- MODE B: requires real data (counts, totals, trends, specific records) — write SELECT
+- MODE C: involves tables/columns not in the docs, or is unrelated to this database
 
-  MODE A  EXPLAIN — the question is fully answered by the documentation above
-          (schema structure, column meanings, table relationships). No query needed.
+Multi-part messages: each distinct question gets its own entry in "responses", in order.
 
-  MODE B  QUERY — the question requires real data: counts, totals, rates, trends,
-          specific records, or any value that changes over time. Write a SELECT.
+SQL RULES (Mode B only):
+- Single SELECT, valid PostgreSQL, no SELECT *
+- Reference only tables and columns named in the docs
+- LIMIT 100 by default; omit only for bare aggregates (single COUNT/SUM/etc with no GROUP BY)
+- Use table aliases and qualified column refs when joining tables that share column names
+- Forbidden: INSERT UPDATE DELETE DROP ALTER CREATE TRUNCATE GRANT REVOKE EXEC COPY and any multi-statement (no semicolons separating statements)
 
-  MODE C  OUT OF SCOPE — the question involves tables, columns, or concepts not present
-          in the documentation, or is unrelated to this database. Name what is missing.
-          If the question ask for unrelated tasks(write eassy for something else, 
-          search internet for something, etc) don't do that and apologize.
+RESPONSE RULES:
+- Mode A: 1–3 plain sentences answering from the docs
+- Mode B: explain what the result means for the user's question; describe what each row/column represents
+- Mode C: name specifically what is missing or out of scope; don't say "I don't have real-time data"
+- Ambiguous question: name both interpretations, write SQL for the most likely, state your assumption
+- Never invent table names, column names, or business logic not in the docs
 
-Ambiguous question: if the question has two plausible SQL interpretations, name both in
-"answer", write SQL for the most likely one, and state the assumption you made.
-
-=======================================
-STEP 1b — SPLIT MULTI-PART MESSAGES
-=======================================
-A single user message may contain more than one question. Before doing anything else,
-identify every distinct question in the message and treat each one independently.
-
-  - Each question gets its own mode classification (A, B, or C).
-  - Each question gets its own entry in the "responses" array in your output.
-  - Questions do not share a mode — a message can produce [Mode A, Mode B, Mode C]
-    entries simultaneously.
-  - The order of entries in "responses" must match the order the questions appeared
-    in the message.
-
-A "distinct question" is any request that needs a separate answer or a separate SQL
-query. If two sub-questions share a single SQL query naturally (e.g. "what is X and Y
-for each order?"), they may be combined into one entry — but only if a single query
-genuinely answers both. When in doubt, split.
-
-=======================================
-STEP 2 — SQL RULES (MODE B ONLY)
-=======================================
-Every query MUST:
-  - Be a single SELECT statement in valid PostgreSQL.
-  - Reference only tables and columns named in the documentation above.
-  - Name every column explicitly — never use SELECT *.
-  - Apply LIMIT 100 by default. Omit LIMIT only when the query returns a small, fixed
-    number of rows by definition (e.g. a single COUNT or SUM with no GROUP BY).
-  - Use table aliases and qualified column references (alias.column) whenever two or
-    more tables share a column name.
-
-A query MUST NOT contain:
-  - Data modification:   INSERT  UPDATE  DELETE  TRUNCATE  MERGE
-  - Schema modification: DROP  ALTER  CREATE  RENAME
-  - Execution:           EXECUTE  CALL  PERFORM  DO
-  - Filesystem access:   COPY  pg_read_file  pg_ls_dir  lo_import
-  - Multiple statements (no semicolons separating statements).
-
-=======================================
-STEP 3 — WRITE THE RESPONSE
-=======================================
-For each entry in "responses":
-
-"answer" field:
-  - Mode A: directly answer the question in 1–3(or required) plain sentences.
-  - Mode B: explain what the result means for the user's actual question. Tell the user
-             how to read the result — what each row represents and what the key column
-             means. Do not just restate the SQL in English.
-  - Mode C: name specifically what is missing or out of scope in 1–2 sentences. Do not
-             say "I don't have access to real-time data" — that mischaracterises this
-             system.
-
-"sql" field:
-  - Mode A or C: JSON null — not the string "null", not an empty string.
-  - Mode B: the SELECT statement as a single JSON string value.
-
-"mode" field:
-  - Always present. One of the strings "A", "B", or "C".
-  - Lets the caller know what kind of response this entry is without parsing "answer".
-
-=======================================
-OUTPUT FORMAT — STRICT
-=======================================
-Return ONLY a valid JSON object. No markdown fences. No text before or after.
-Always use the "responses" array — even when there is only one question.
-
-{{
-  "responses": [
-    {{
-      "mode": "A" | "B" | "C",
-      "answer": "<string — never null, never empty>",
-      "sql": "<SELECT statement, or null>"
-    }}
-  ]
-}}
-
-JSON encoding rules:
-  - Escape all double-quotes inside string values as \\"
-  - Escape hard newlines inside string values as \\n
-  - "answer" must never be null or an empty string.
-  - "responses" must never be an empty array — every question gets an entry.
-
-=======================================
-GROUND RULES
-=======================================
-Never invent or assume anything not stated in the documentation:
-no table names, no column names, no business logic, no data values.
-If something is genuinely unclear or absent from the documentation, respond in Mode C."""
+OUTPUT — return ONLY valid JSON, no markdown fences, no text before or after:
+{{"responses": [{{"mode": "A"|"B"|"C", "answer": "<non-empty string>", "sql": "<SELECT or null>"}}]}}
+Escape inner quotes as \\" and newlines as \\n. "answer" is never null. "responses" is never empty.
+"""
 
 
 # History compression
@@ -212,40 +123,14 @@ def _compress_turn(turn: dict) -> str:
     return turn["content"]   # user messages stay as-is
 
 
-def _build_messages(
-    system_content: str,
-    history: list[dict],
-    question: str,
-) -> list:
-    """Build the LangChain message list with three token optimisations applied:
-
-    1. Prompt caching  — system message is first and static; the provider caches it.
-    2. Sliding window  — at most HISTORY_WINDOW messages from history are included;
-                         older ones are dropped entirely.
-    3. Compression     — messages outside RECENT_FULL_COUNT are compressed to ~150
-                         chars; the most recent RECENT_FULL_COUNT messages stay full
-                         so follow-up queries (e.g. "now filter by country") retain
-                         the SQL that was just generated.
-    """
-    messages = [SystemMessage(content=system_content)]
-
-    # Apply sliding window first
+def _build_messages(system_content, history, question):
+    messages = [{"role": "system", "content": system_content}]
     windowed = history[-HISTORY_WINDOW:]
-
     for i, turn in enumerate(windowed):
-        # Distance from the END of the list (1 = most recent)
         distance_from_end = len(windowed) - i
-        if distance_from_end > RECENT_FULL_COUNT:
-            content = _compress_turn(turn)
-        else:
-            content = turn["content"]
-
-        if turn["role"] == "user":
-            messages.append(HumanMessage(content=content))
-        else:
-            messages.append(AIMessage(content=content))
-
-    messages.append(HumanMessage(content=question))
+        content = _compress_turn(turn) if distance_from_end > RECENT_FULL_COUNT else turn["content"]
+        messages.append({"role": turn["role"], "content": content})
+    messages.append({"role": "user", "content": question})
     return messages
 
 
@@ -308,31 +193,6 @@ def ask_question(
     history: list[dict],   # [{"role": "user"|"assistant", "content": "..."}]
     docs_path: Path = ANALYSIS_PATH,
 ) -> list[dict]:
-    """Ask a question about the database.
-
-    Args:
-        question:  The user's current question (may contain multiple sub-questions).
-        history:   Full conversation so far. Caller appends to this after the call.
-        docs_path: Path to schema_analysis.json (default: data/schema_analysis.json).
-
-    Returns:
-        list of response dicts — one per distinct question found in the message:
-        [
-            {
-                "mode":    "A" | "B" | "C",
-                "answer":  str,
-                "sql":     str | None,
-                "results": str | None,   # populated after SQL execution; not from LLM
-            },
-            ...
-        ]
-
-    Token optimisations applied on every call (all transparent to callers):
-        - cache_prompt=True passed to Fireworks → system prompt re-billed at ~10%
-          cost on cache hits
-        - History windowed to last HISTORY_WINDOW messages
-        - Messages older than RECENT_FULL_COUNT compressed to ~150 chars each
-    """
     llm = _get_llm()
     docs = _load_docs(docs_path)
     system_content = SYSTEM_PROMPT.format(docs=docs)
@@ -341,6 +201,7 @@ def ask_question(
 
     try:
         raw = llm.invoke(messages)
+
     except LangChainException as e:
         return [{"mode": "C", "answer": f"LLM call failed: {e}", "sql": None, "results": None}]
     except Exception as e:
@@ -349,6 +210,7 @@ def ask_question(
     # gpt-oss-120b quirk: reasoning tokens live in a separate field; use .content only.
     content = raw.content if isinstance(raw.content, str) else raw.content[0]["text"]
     content = content.strip().strip("```json").strip("```").strip()
+
 
     try:
         parsed = json.loads(content)
