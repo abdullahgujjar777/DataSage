@@ -252,8 +252,45 @@ Chat history stored as [{"role": "user"|"assistant", "content": "..."}] — exac
 
 
 
-## Module 7 — Privacy Layer ⬜ NOT STARTED
-## Module 8 — Scale & Robustness Testing ⬜ NOT STARTED
+
+## Module 7 — Privacy Layer ✅ DONE
+
+**What's done:**
+- `pii_masker.py` — column-name pattern matching against ~40 PII patterns (email, phone, ssn, password, address, lat/lng, names, etc.)
+- `mask_sample_rows()` replaces matched column values with `[MASKED]` before any LLM call
+- `pii_columns_in_table()` returns flagged column list for logging/UI
+- `schema_snapshot.py` updated — accepts `pii_masking: bool` param, calls masker, logs `pii_columns_masked` per table in snapshot
+- UI toggle in sidebar (on by default); masked columns shown in collapsible expander after scan
+- Verified: `email`, `first_name`, `last_name` masked in customers; non-PII tables unaffected
+
+**Key files:**
+- `pii_masker.py`
+- `schema_snapshot.py` (updated)
+- `app.py` (toggle + masked columns expander)
+
+---
+
+## Module 8 — Scale & Robustness Testing ✅ DONE
+
+**What's done:**
+- 3 new tables added: `suppliers`, `inventory`, `returns`
+- `suppliers` — 10 rows, joins to `products.supplier_id` (new FK column)
+- `inventory` — one row per product, tracks `quantity_on_hand` and `reorder_threshold`
+- `returns` — ~60% of cancelled/refunded order items, with aligned `refund_amount` (null for pending/rejected)
+- New cross-table traps: `suppliers.country` vs `customers.country` (no FK, different entities); `status` now spans 6 tables
+- Agent 2 verified clean on all 8 tables — traps caught correctly, no truncation
+- Schema drift detection wired into UI — "Check for Schema Drift" button in sidebar, no LLM call, pure structural diff
+- Error handling added: `get_engine()` validates connection on init, raises `ConnectionError` with clean message; `ask_question()` wraps LLM call in try/except returning Mode C on failure
+
+**Key files:**
+- `add_tables.sql` — DDL for 3 new tables + `ALTER TABLE products ADD COLUMN supplier_id`
+- `generate_new_tables.py` — Faker population, data aligned with existing orders/products
+- `drift_detector.py` (existing, now wired to UI)
+- `app.py` (drift button added to sidebar)
+- `connectors/postgres.py` (connection error handling)
+- `agents/data_concierge.py` (LLM error handling)
+
+
 ## Module 9 — Submission Prep ⬜ NOT STARTED
 
 ---
