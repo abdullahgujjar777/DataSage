@@ -127,7 +127,7 @@
 - Switched from 5 separate per-table LLM calls to 1 combined call — cheaper, and the only
   way to give the model visibility into both `channel` columns at once
 - Split `SchemaAnalysisDraft` (LLM-facing, no `generated_at`) from `SchemaAnalysis`
-  (disk-facing) — LLM never asked to invent a timestamp it can't know
+  (disk-facing, adds `generated_at`) — LLM never asked to invent a timestamp it can't know
 - Cross-table collision detection moved from "ask the model to notice it" to deterministic
   Python checklist injected into the prompt — turns an open-ended task into a closed one,
   scales better as table count grows (Module 8 relevance)
@@ -290,8 +290,53 @@ Chat history stored as [{"role": "user"|"assistant", "content": "..."}] — exac
 - `connectors/postgres.py` (connection error handling)
 - `agents/data_concierge.py` (LLM error handling)
 
+---
 
-## Module 9 — Submission Prep ⬜ NOT STARTED
+## Module 9 — Context Pack + Accuracy Demo 🔄 IN PROGRESS
+
+**What's done (9a ✅, 9b ✅, 9c ✅ — 9d deferred):**
+
+**9a — Context Pack alias + download button:**
+- `write_analysis()` in `agents/business_analyst.py` copies `schema_analysis.json` → `data/context_pack.json` via `shutil.copy2` after every scan — zero internal renaming, just the alias
+- `data/context_pack.json` confirmed present and up to date
+- Sidebar download button (`⬇️ Download Context Pack`) pointing at `context_pack.json`
+- `"use_context_pack": True` initialised in `st.session_state` defaults
+
+**9b — `use_context_pack` flag:**
+- `ask_question()` signature updated: `use_context_pack: bool = True`
+- `_load_raw_schema()` added to `data_concierge.py` — reads `schema_snapshot.json`, returns column names + types only (no meanings, no flags, no relationships)
+- Conditional: `docs = _load_docs(docs_path) if use_context_pack else _load_raw_schema()`
+- Toggle added to Chat tab: `st.toggle("🧠 Use Context Pack", value=True, ...)`
+- Toggle value wired through to `ask_question(..., use_context_pack=use_context_pack)`
+- Bug fixed: original `ask_question()` was missing both the param and the conditional load line
+
+**9c — Failure question confirmed:**
+- Question: *"Compare channel performance between marketing and sales"*
+- Raw schema mode: produces UNION ALL across disjoint channel value sets — structurally valid SQL, analytically meaningless (marketing channels ≠ sales channels, no FK)
+- Context Pack mode: correctly identifies the ambiguity and avoids the false join
+- This is the core proof point for the thesis
+
+**9d — Context Pack Impact tab (deferred):**
+- Side-by-side comparison UI in Streamlit — not yet implemented
+- Still on the list; lower priority than MCP server for submission demo
+
+**Key files:**
+- `agents/business_analyst.py` — `write_analysis()` (shutil.copy2 alias)
+- `agents/data_concierge.py` — `use_context_pack` param, `_load_raw_schema()`
+- `app.py` — download button, use_context_pack toggle, session state
+- `data/context_pack.json` — alias output
+
+---
+
+## Module 10 — MCP Server ⬜ NOT STARTED
+
+---
+
+## Module 11 — Docker + Public Deploy ⬜ NOT STARTED
+
+---
+
+## Module 12 — Submission Prep ⬜ NOT STARTED
 
 ---
 
