@@ -25,7 +25,14 @@ def get_engine() -> Engine:
     connection_string = f"postgresql+psycopg2://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}"
 
     try:
-        _engine = create_engine(connection_string, pool_size=5, max_overflow=10, pool_pre_ping=True,)
+        _engine = create_engine(connection_string, pool_size=5, max_overflow=10, pool_pre_ping=True,connect_args={
+                "connect_timeout": 10,             # fail fast if DB is unreachable (seconds)
+                "options": (
+                    "-c statement_timeout=30000"   # kill any query running >30s (milliseconds)
+                    " -c lock_timeout=5000"        # don't hang waiting for locks >5s
+                ),
+            },
+        )
         with _engine.connect():  # validate connection immediately
             pass
     except OperationalError as e:

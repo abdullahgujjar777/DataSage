@@ -162,12 +162,17 @@ def build_cross_table_index(tables: list[dict]) -> str:
 
     return "\n".join(lines) if lines else "(no cross-table column-name collisions found)"
 
-def _get_llm() -> LLM:
+def _get_llm(table_count: int = 8) -> LLM:
+    # ~600 tokens per table for full analysis output, 1500 base overhead
+    dynamic_max = table_count * 600 + 1500
+    # Floor: 6000 so small schemas still get breathing room
+    # Ceiling: 8192 — safe limit for gpt-oss-120b on Fireworks
+    max_tokens = min(max(6000, dynamic_max), 8192)
     return LLM(
         model="fireworks_ai/accounts/fireworks/models/gpt-oss-120b",
         base_url="https://api.fireworks.ai/inference/v1",
         temperature=0.2,   # factual task, not creative — keep it deterministic
-        max_tokens=4000,   # cap runaway output cost; raise if you see truncation
+        max_tokens=max_tokens,   # cap runaway output cost; raise if you see truncation
     )
 
 def _format_table_block(table: dict) -> str:
@@ -199,7 +204,7 @@ def run_analysis(snapshot_path: Path = SNAPSHOT_PATH) -> SchemaAnalysis:
         role="Business Analyst",
         goal="Explain database tables in plain business language, flagging ambiguity instead of guessing.",
         backstory="A senior data analyst who values precision over confident-sounding guesses.",
-        llm=_get_llm(),
+        llm=_get_llm(len(snapshot["tables"])),
         verbose=True,
     )
 

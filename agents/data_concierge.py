@@ -169,6 +169,10 @@ def _enforce_limit(sql: str, cap: int = 100) -> str:
     )
     if is_bare_aggregate:
         return sql
+    
+    # CTE — WITH clause must stay at statement level, can't be wrapped in FROM
+    if re.search(r'^\s*WITH\b', sql, re.IGNORECASE):
+        return f"{sql} LIMIT {cap}"
     return f"SELECT * FROM ({sql}) AS _q LIMIT {cap}"
 
 
@@ -178,6 +182,7 @@ def _execute_sql(sql: str, row_cap: int = 50) -> str:
     try:
         engine = get_engine()
         with engine.connect() as conn:
+            conn.execute(text("SET LOCAL statement_timeout = '15s'"))
             result = conn.execute(text(sql))
             rows = result.mappings().all()
 
@@ -204,15 +209,13 @@ def ask_question(
     use_context_pack: bool = True,  #for comparison
 ) -> list[dict]:
     llm = _get_llm()
-    docs = _load_docs(docs_path) if use_context_pack else _load_raw_schema() #test case
-    safe_docs = docs.replace("{", "{{").replace("}", "}}")
-    system_content = SYSTEM_PROMPT.format(docs=safe_docs)
-
-    messages = _build_messages(system_content, history, question)
 
     try:
+        docs = _load_docs(docs_path) if use_context_pack else _load_raw_schema() #test case
+        safe_docs = docs.replace("{", "{{").replace("}", "}}")
+        system_content = SYSTEM_PROMPT.format(docs=safe_docs)
+        messages = _build_messages(system_content, history, question)
         raw = llm.invoke(messages)
-
     except LangChainException as e:
         return [{"mode": "C", "answer": f"LLM call failed: {e}", "sql": None, "results": None}]
     except Exception as e:
