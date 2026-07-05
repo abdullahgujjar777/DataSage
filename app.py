@@ -30,6 +30,7 @@ def _init_state():
         "history":     [],           # [{role, content}] for data_concierge
         "scan_done":   ANALYSIS_PATH.exists(),
         "scan_error":  None,
+        "use_context_pack": True,
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -160,6 +161,16 @@ with st.sidebar:
         except Exception:
             pass
 
+    context_pack_path = Path("data/context_pack.json")
+    if context_pack_path.exists():
+        st.download_button(
+            label="⬇️ Download Context Pack",
+            data=context_pack_path.read_bytes(),
+            file_name="context_pack.json",
+            mime="application/json",
+            use_container_width=True,
+        )
+
     # Show which columns were masked in the last snapshot
     snapshot_path = Path("data/schema_snapshot.json")
     if snapshot_path.exists():
@@ -212,13 +223,17 @@ with tab_docs:
 with tab_chat:
     st.markdown("Ask anything about your database — schema, column meanings, or real data queries.")
 
+    use_context_pack = st.toggle("🧠 Use Context Pack", value=True, 
+                                  help="When off, the assistant only sees raw column names — no meanings or ambiguity flags.")
+
+    # Chat input
+    prompt = st.chat_input("E.g. 'Which table tracks revenue?' or 'How many active customers are there?'")
+
     # Replay conversation history
     for turn in st.session_state.history:
         with st.chat_message(turn["role"]):
             st.markdown(turn["content"])
 
-    # Chat input
-    prompt = st.chat_input("E.g. 'Which table tracks revenue?' or 'How many active customers are there?'")
 
     if prompt:
         # Show the user's message immediately
@@ -234,6 +249,7 @@ with tab_chat:
                         question=prompt,
                         history=st.session_state.history,
                         docs_path=ANALYSIS_PATH,
+                        use_context_pack=use_context_pack,   # ← temp, for testing
                     )
                 except Exception as exc:
                     responses = [{

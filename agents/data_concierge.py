@@ -19,7 +19,7 @@ import re
 load_dotenv()
 
 ANALYSIS_PATH = Path("data/schema_analysis.json")
-
+SNAPSHOT_PATH = Path("data/schema_snapshot.json")
 
 # Token-saving constants
 
@@ -54,6 +54,15 @@ def _load_docs(path: Path = ANALYSIS_PATH) -> str:
             entry += f"\n{flags}"
         lines.append(entry)
     return "\n---\n".join(lines)
+
+# for comparison
+def _load_raw_schema(path: Path = SNAPSHOT_PATH) -> str:
+    data = json.loads(path.read_text(encoding="utf-8"))
+    lines = []
+    for t in data["tables"]:
+        cols = ", ".join(c['name'] for c in t["columns"])
+        lines.append(f"[{t['table_name']}] Cols: {cols}")
+    return "\n".join(lines)
 
 
 # System prompt
@@ -192,9 +201,10 @@ def ask_question(
     question: str,
     history: list[dict],   # [{"role": "user"|"assistant", "content": "..."}]
     docs_path: Path = ANALYSIS_PATH,
+    use_context_pack: bool = True,  #for comparison
 ) -> list[dict]:
     llm = _get_llm()
-    docs = _load_docs(docs_path)
+    docs = _load_docs(docs_path) if use_context_pack else _load_raw_schema() #test case
     system_content = SYSTEM_PROMPT.format(docs=docs)
 
     messages = _build_messages(system_content, history, question)

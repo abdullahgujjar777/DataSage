@@ -216,6 +216,9 @@ def run_analysis(snapshot_path: Path = SNAPSHOT_PATH) -> SchemaAnalysis:
 def write_analysis(analysis: SchemaAnalysis, path: Path = OUTPUT_PATH) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(analysis.model_dump_json(indent=2), encoding="utf-8")
+    import shutil
+    shutil.copy2(path, path.parent / "context_pack.json")
+
 
 if __name__ == "__main__":
     from markdown_renderer import render_markdown
