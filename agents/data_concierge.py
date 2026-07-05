@@ -205,7 +205,8 @@ def ask_question(
 ) -> list[dict]:
     llm = _get_llm()
     docs = _load_docs(docs_path) if use_context_pack else _load_raw_schema() #test case
-    system_content = SYSTEM_PROMPT.format(docs=docs)
+    safe_docs = docs.replace("{", "{{").replace("}", "}}")
+    system_content = SYSTEM_PROMPT.format(docs=safe_docs)
 
     messages = _build_messages(system_content, history, question)
 

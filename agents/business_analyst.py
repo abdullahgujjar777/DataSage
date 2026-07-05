@@ -182,10 +182,11 @@ def _build_task(agent: Agent, tables: list[dict]) -> Task:
     tables_block = "\n\n".join(_format_table_block(t) for t in tables)
     cross_table_index_block = build_cross_table_index(tables)
     return Task(
-        description=PROMPT_TEMPLATE.format(
-            tables_block=tables_block,
-            cross_table_index_block=cross_table_index_block,
-        ),
+        description = (
+            PROMPT_TEMPLATE
+            .replace("{tables_block}", tables_block)
+            .replace("{cross_table_index_block}", cross_table_index_block)
+),
         expected_output=f"A SchemaAnalysisDraft with exactly {len(tables)} TableAnalysis entries, one per table above, in order.",
         agent=agent,
         output_pydantic=SchemaAnalysisDraft,
