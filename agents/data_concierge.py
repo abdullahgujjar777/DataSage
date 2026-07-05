@@ -154,7 +154,7 @@ def _is_safe_sql(sql: str) -> bool:
         return False
     forbidden = [
         "INSERT", "UPDATE", "DELETE", "DROP", "ALTER",
-        "CREATE", "TRUNCATE", "GRANT", "REVOKE", "EXEC",
+        "CREATE", "TRUNCATE", "GRANT", "REVOKE", "EXEC", "COPY",
     ]
     return not any(kw in cleaned for kw in forbidden)
 

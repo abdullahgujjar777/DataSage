@@ -232,8 +232,18 @@ with tab_chat:
     # Replay conversation history
     for turn in st.session_state.history:
         with st.chat_message(turn["role"]):
-            st.markdown(turn["content"])
-
+            if turn["role"] == "assistant":
+                try:
+                    data = json.loads(turn["content"])
+                    for resp in data.get("responses", []):
+                        st.markdown(resp.get("answer", ""))
+                    if resp.get("sql"):
+                        with st.expander("SQL"):
+                            st.code(resp["sql"], language="sql")
+                except Exception:
+                    st.markdown(turn["content"])
+            else:
+                st.markdown(turn["content"])
 
     if prompt:
         # Show the user's message immediately
