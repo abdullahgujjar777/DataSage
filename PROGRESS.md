@@ -15,12 +15,12 @@
   - Model: `accounts/fireworks/models/gpt-oss-120b`
   - Endpoint: `https://api.fireworks.ai/inference/v1` (OpenAI-compatible)
   - Credentials in `.env`: `FIREWORKS_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL`
-  - Budget: $6 credit on Fireworks — keep row samples small, watch token usage once Agent 2/3 testing ramps up
+  - Budget: $6 credit on Fireworks — keep row samples small, watch token usage
   - `test_llm.py` confirmed working
 
 **Key technical note:** `gpt-oss-120b` returns a separate `reasoning_content` field alongside `content` — downstream agent code must parse only `content`.
 
-**Key files:** `.env`, `test_llm.py`, `requirements.txt` (or equivalent)
+**Key files:** `.env`, `test_llm.py`, `requirements.txt`
 
 ---
 
@@ -29,23 +29,18 @@
 **What's done:**
 - Schema designed and created: 5 tables — `customers`, `orders`, `products`, `order_items`, `marketing_campaigns`
 - Faker-based generator populated: 80 customers, 60 products, 15 marketing_campaigns, 100 orders, ~300 order_items
-- Verified internal consistency: order `total_amount` matches sum of its `order_items`; order dates can't precede the customer's signup date; order `status` correlates with order age (no "pending" order from 11 months ago); campaign `end_date` only populated for "completed" campaigns
+- Verified internal consistency: order `total_amount` matches sum of its `order_items`; order dates can't precede the customer's signup date
 - Committed and pushed to GitHub: `schema.sql`, `generate_demo_data.py`
-- Fixed a `.gitignore` encoding bug (file was saved as UTF-16, which silently broke the `.env` exclusion pattern) — confirmed `.env` is now actually ignored via `git check-ignore -v .env`
+- Fixed a `.gitignore` encoding bug (UTF-16 silently broke the `.env` exclusion pattern)
 
-**Key decisions / deviations from plan:**
-- Built two deliberate ambiguity traps into the schema, beyond just vague column names — these are the actual eval target for Module 4 (Business Analyst):
-  - **`channel`** exists in both `orders` (`web`/`mobile_app`/`marketplace`/`in_store`) and `marketing_campaigns` (`email`/`social_media`/`paid_search`/`affiliate`) — no FK between the two tables, and the value sets don't overlap. Tests whether the agent falsely infers a relationship between same-named columns vs. correctly flags it as unconfirmed.
-  - **`status`** exists in 4 tables (`customers`, `products`, `orders`, `marketing_campaigns`), each with a different value set/lifecycle. Tests whether the agent gives table-specific explanations instead of one generic "status tracks record state" answer for all four.
-  - `segment` (customers only) is a simpler, single-table naming ambiguity — not a cross-table trap.
-- `marketing_campaigns` intentionally has no FK to any other table (see `channel` trap above).
-- Data-consistency bugs found and fixed during build (none of these affect the traps above): campaign `end_date` no longer set for active/paused campaigns; `order_date` can't predate `customers.signup_date`; `orders.status` now derives from order age instead of being picked independently of date.
-- Known simplification, not a bug: `order_items.unit_price` uses the product's *current* price, not a historical price-at-order-time. Out of scope for the hackathon.
+**Key decisions:**
+- **`channel`** in `orders` (web/mobile_app/marketplace/in_store) vs `marketing_campaigns` (email/social_media/paid_search/affiliate) — no FK, disjoint value sets. Core ambiguity trap.
+- **`status`** across 4 tables, each with different value set/lifecycle
+- `segment` (customers only) — single-table naming ambiguity
+- `marketing_campaigns` intentionally has no FK to any other table
 
 **Key files:**
-- `schema.sql` — CREATE TABLE statements for all 5 tables
-- `generate_demo_data.py` — Faker population script (run after `schema.sql`; drops and recreates tables each run)
-- `.gitignore` — `venv/`, `.env`, `__pycache__/`, `*.pyc`
+- `schema.sql`, `generate_demo_data.py`, `.gitignore`
 
 ---
 
@@ -53,326 +48,215 @@
 
 **What's done:**
 - Pydantic models (`ColumnInfo`, `TableSchema`, `SampleRow`) in `models/schema_models.py`
-- Read-only Postgres role `datasage_reader` created via `sql/create_readonly_role.sql`; verified read succeeds, write fails (`DELETE` → permission denied)
-- Singleton SQLAlchemy engine (`get_engine()`) in `connectors/postgres.py` — pooled, cached at module level (`global _engine`), credentials from `.env`
-- `get_schema(engine)` — auto-discovers tables/columns/types/PKs, declared FKs only (no heuristic/name-based FK inference, by design — preserves Module 1's `channel`/`status` ambiguity traps)
-- `sample_rows(engine, table_name, limit=8)` — real sample rows per table, returns `list[SampleRow]`
-- `test_connector.py` — standalone integration test across all 5 tables; confirmed real FKs detected correctly, both `channel` traps correctly show `FK: None`
+- Read-only Postgres role `datasage_reader` created via `sql/create_readonly_role.sql`
+- Singleton SQLAlchemy engine (`get_engine()`) in `connectors/postgres.py`
+- `get_schema(engine)` — auto-discovers tables/columns/types/PKs, declared FKs only (no heuristic inference)
+- `sample_rows(engine, table_name, limit=8)` — real sample rows per table
 
-**Key decisions / deviations from plan:**
-- Rejected warehouse-agnostic abstraction (BaseConnector/Factory/ConnectionConfig) from a parallel planning chat — kept function-based design; abstracting before a second warehouse exists means guessing at the interface
-- Rejected tracing/fixtures infra for this module — premature with two functions; revisit if Module 3/4 chaining makes failures hard to localize
-- Rejected column-name-based FK inference heuristic — would falsely link `channel` trap columns before Agent 2 reasons about them, defeating the Module 1 eval
-- Engine made a true module-level singleton (not just "created once") — needed since CrewAI tools (Module 3) will call `get_engine()` repeatedly per run
+**Key decisions:**
+- Rejected column-name-based FK inference — would falsely link `channel` trap columns before Agent 2 reasons about them
 
 **Key files:**
-- `connectors/postgres.py` — `get_engine()`, `get_schema()`, `sample_rows()`
-- `models/schema_models.py` — `ColumnInfo`, `TableSchema`, `SampleRow`
-- `sql/create_readonly_role.sql` — read-only role setup (record only, already applied)
-- `test_connector.py` — standalone test script
+- `connectors/postgres.py`, `models/schema_models.py`, `sql/create_readonly_role.sql`
 
 ---
 
-## On the horizon (deferred, not urgent)
-- **PII masking enhancement (Module 7):** plan is column-name pattern matching only; real DLP/Macie/Purium-style tools also do content-based regex matching on sample values to catch PII in non-obvious columns (`notes`, `bio`, etc.) — log as known limitation + extension path in README, not required for submission
-- **Documentation depth control (Module 4/6):** ask user once, pre-scan, if they're familiar with the data → feeds Agent 2's prompt as a mode switch (thorough vs concise) → later exposed as a Module 6 UI toggle. Cheap: it's a prompt-template branch, not new infra.
-
-
 ## Module 3 — Schema Snapshot ✅ DONE
-*(originally planned as a CrewAI agent — see "Key decisions" below for why that changed)*
 
 **What's done:**
-- `schema_snapshot.py` — plain Python, no LLM. Calls Module 2's connector functions and
-  writes the full schema + 8 sample rows per table to `data/schema_snapshot.json`
-- Verified: all 5 tables present, FKs intact, `channel`/`status` ambiguity traps preserved
+- `schema_snapshot.py` — plain deterministic Python, no LLM
+- Writes full schema + 8 sample rows per table to `data/schema_snapshot.json`
 
-**Key decisions / deviations from plan:**
-- Originally built as a CrewAI agent ("Schema Scout") calling a tool. Dropped it after
-  testing showed the LLM (Fireworks gpt-oss-120b) wouldn't reliably call the tool —
-  it repeatedly fabricated a plausible-but-fake generic e-commerce schema instead of
-  executing the function (matches CrewAI issue #3154). A guardrail with live DB
-  validation could force correct output via retries, but cost 3-4x the LLM calls for
-  a task with zero actual reasoning in it.
-- Verdict: there is nothing to reason about in fetching a schema. An agent adds
-  unreliability and token cost with no benefit. Replaced with deterministic Python.
-- Project is now a 2-agent system (Business Analyst, Data Concierge) plus a
-  deterministic data-collection step — not 3 agents. Reflect this in README/submission framing.
+**Key decisions:**
+- Schema Scout CrewAI agent dropped — LLM fabricated schema instead of calling the tool; no reasoning needed for schema fetching. Replaced with deterministic Python.
+- Project is now 2-agent system (Business Analyst, Data Concierge) + deterministic collection step
 
 **Key files:**
-- `schema_snapshot.py` — `collect_schema_and_samples()`, `write_snapshot()`
-- `data/schema_snapshot.json` — generated output, Module 4's input
-- `test_schema_snapshot.py` — standalone test
+- `schema_snapshot.py`, `data/schema_snapshot.json`
 
-
-
+---
 
 ## Module 4 — Agent 2: Business Analyst ✅ DONE
 
 **What's done:**
-- Pydantic models: `TableAnalysis`, `ColumnMeaning`, `AmbiguityFlag`, `SchemaAnalysisDraft`
-  (LLM output, no metadata), `SchemaAnalysis` (saved output, adds `generated_at`) in
-  `models/analysis_models.py`
-- `agents/business_analyst.py` — single Agent, single Task, single LLM call analyzing all
-  5 tables at once — ~5x cheaper than per-table calls, gives the model cross-table visibility
-- `build_cross_table_index()` — deterministic Python precomputation: finds every column name
-  shared across 2+ tables with no FK, with sampled values per table and overlap, grouped by
-  column name (not pairwise) so each table gets ONE consolidated flag per colliding column
-  instead of one per other table sharing the name
-- `markdown_renderer.py` — pure Python, `render_markdown(analysis)`, zero LLM calls
-- `render_docs.py` — regenerates `documentation.md` from cached `data/schema_analysis.json`,
-  zero LLM calls, so markdown formatting iteration never touches the API budget
-- Verified end-to-end across 3 prompt iterations (see below); final run confirmed clean
+- Pydantic models: `TableAnalysis`, `ColumnMeaning`, `AmbiguityFlag`, `SchemaAnalysisDraft`, `SchemaAnalysis`
+- Single Agent, single Task, single LLM call analyzing all tables at once
+- `build_cross_table_index()` — deterministic Python precomputation of cross-table column collisions, injected as closed checklist into prompt
+- `markdown_renderer.py` — pure Python, zero LLM calls
+- `render_docs.py` — regenerates docs from cached JSON, zero LLM calls
 
-**Key decisions / deviations from plan:**
-- Switched from 5 separate per-table LLM calls to 1 combined call — cheaper, and the only
-  way to give the model visibility into both `channel` columns at once
-- Split `SchemaAnalysisDraft` (LLM-facing, no `generated_at`) from `SchemaAnalysis`
-  (disk-facing, adds `generated_at`) — LLM never asked to invent a timestamp it can't know
-- Cross-table collision detection moved from "ask the model to notice it" to deterministic
-  Python checklist injected into the prompt — turns an open-ended task into a closed one,
-  scales better as table count grows (Module 8 relevance)
-- Index grouped by column name (not pairwise per table-pair) after pairwise version caused
-  `status` (4 tables) to generate 3 redundant flags per table instead of 1, and made the
-  model falsely flag "active" (a generic shared word) as a possible undeclared relationship
-  between unrelated tables (customers/products/marketing_campaigns) — fixed by surfacing all
-  colliding tables together and adding explicit guidance to treat small/generic overlaps as
-  coincidental, not relational
-- `render_docs.py` added as a free, no-LLM rendering path separate from `run_analysis()`
-
-**Eval results (channel/status/segment traps from Module 1) — final run:**
-- `channel` trap: ✅ caught — correctly flagged as different concepts, no false link
-- `status` trap: ✅ caught — one consolidated flag per table, correctly dismisses "active"
-  overlap as coincidental rather than a relationship signal
-- `segment` trap: ✅ caught — flags the undefined criteria behind segment labels
-
-**Known operational note:** hit a transient Windows DNS resolution failure
-(`getaddrinfo failed`) mid-run once — confirmed as a local network blip (unrelated host
-`telemetry.crewai.com` also failed to resolve in the same run), not a Fireworks outage or
-code bug. No code changes made for it; real retry/error handling is already scoped for
-Module 8.
+**Eval results:**
+- `channel` trap: ✅ caught — flagged as different concepts, no false link
+- `status` trap: ✅ caught — one consolidated flag per table
+- `segment` trap: ✅ caught
 
 **Key files:**
-- `models/analysis_models.py` — `TableAnalysis`, `ColumnMeaning`, `AmbiguityFlag`,
-  `SchemaAnalysisDraft`, `SchemaAnalysis`
-- `agents/business_analyst.py` — `run_analysis()`, `write_analysis()`,
-  `build_cross_table_index()`
-- `markdown_renderer.py` — `render_markdown()`
-- `render_docs.py` — `load_analysis()`, no-LLM doc regeneration
-- `data/schema_analysis.json` — generated output, Module 5's input
-- `data/documentation.md` — final rendered doc
+- `models/analysis_models.py`, `agents/business_analyst.py`, `markdown_renderer.py`, `render_docs.py`
+- `data/schema_analysis.json`, `data/documentation.md`
 
-
-
+---
 
 ## Module 5 — Agent 3: Data Concierge ✅ DONE
 
 **What's done:**
-
-
-`agents/data_concierge.py` — complete implementation:
-
-`_load_docs()` — flattens schema_analysis.json into a compact natural-language string for the prompt (cheaper tokens than raw JSON)
-`_get_llm()` — LangChain ChatOpenAI pointing at Fireworks endpoint (no CrewAI — single agent, single call, no orchestration needed)
-`_is_safe_sql()` — app-level SQL safety guard, rejects any non-SELECT before hitting the DB; defense-in-depth on top of the read-only DB role
-`_enforce_limit()` — strips trailing semicolons before subquery wrapping (prevents PostgreSQL syntax errors), skips wrapping for bare aggregates (COUNT/SUM/AVG/MIN/MAX with no GROUP BY) that always return one row
-`_execute_sql()` — runs validated SQL via datasage_reader engine, returns results as plain-text table, caps at 50 display rows
-`ask_question(question, history, docs_path)` — full public API: builds message list (system + history + question), calls LLM, parses responses array, executes SQL if present, returns list[dict]
-
-
-
-`drift_detector.py` — complete:
-
-`detect_drift()` — loads baseline snapshot, re-collects live from DB, diffs tables and columns (additions, removals, type changes, nullability changes)
-`format_drift_report()` — human-readable summary
-Fully deterministic, no LLM
-
-
-
-`test_data_concierge.py` — test suite verified: Mode A (doc-only), Mode B (Text-to-SQL), multi-turn, multi-part questions, Mode C (out of scope) all passing
-
-
-**Key decisions:**
-
-
-No CrewAI — Data Concierge is a single LLM call; CrewAI would add overhead with no benefit
-LangChain ChatOpenAI used directly — maps to Fireworks endpoint via OpenAI-compatible API
-`ask_question` returns `list[dict]` not a single dict — prompt handles multi-part questions and returns a responses array; each entry has `{mode, answer, sql, results}`
-Mode A/B/C classification before generation — forces the model to decide question type before answering; reduces hallucinated SQL and vague answers
-`results` is added by Python post-execution, not by the LLM — the LLM describes what results will show before they're retrieved; results appear in the next turn's history
-Chat history: LLMs are stateless — `history: list[dict]` is rebuilt into the message list on every call; caller owns the list and appends after each turn
-Schema drift detection is deterministic Python — no LLM needed; detecting structural changes is pure set-diff, not reasoning
-`_enforce_limit()` strips trailing semicolons before wrapping — LLM-generated SQL often includes a trailing semicolon which becomes a syntax error when embedded inside a subquery; stripping it at the enforcement layer fixes this without touching the LLM prompt
-
+- `agents/data_concierge.py` — multi-turn chat, Text-to-SQL, Mode A/B/C classification
+- SQL safety: app-layer keyword blocklist + DB-level read-only role
+- `_enforce_limit()` strips trailing semicolons before subquery wrapping
+- `ask_question()` returns `list[dict]` — handles multi-part questions
 
 **Key files:**
+- `agents/data_concierge.py`
 
-
-`agents/data_concierge.py` — `ask_question()`, `_load_docs()`, `_is_safe_sql()`, `_enforce_limit()`, `_execute_sql()`
-`drift_detector.py` — `detect_drift()`, `format_drift_report()`
-`test_data_concierge.py`
-
+---
 
 ## Module 6 — Streamlit UI ✅ DONE
 
 **What's done:**
+- `app.py` — single-file Streamlit app; sidebar connection form, scan button, docs tab, chat tab
+- Mode B results rendered as `st.dataframe`; SQL in collapsible expander
+- Welcome screen shown before first scan
 
+**Key files:** `app.py`
 
-`app.py` — single-file Streamlit app; run with streamlit run app.py
-Sidebar: DB connection form (host, port, database, user, password) pre-filled from
-`.env` via `dotenv_values()`; PII masking toggle (on by default, wired for Module 7);
-"⚡ Scan Database" primary button; last-scan timestamp shown from schema_analysis.json
-Scan flow: injects form values into `os.environ` before calling `run_analysis()` so
-the SQLAlchemy singleton picks up the correct credentials; runs under `st.spinner`;
-clears chat history on re-scan; shows clean error message on failure
-Documentation tab: renders `data/documentation.md` as Markdown
-Chat tab: full `st.chat_message` / `st.chat_input` loop; maintains conversation
-history in `st.session_state` in the format `ask_question()` expects; renders Mode B
-result sets as st.dataframe (with plain-text fallback); SQL in a collapsible expander;
-multi-part responses get mode badges and dividers
-Welcome screen: shown before first scan (`st.stop()` gates the tabs); explains the
-four-step scan process in plain language
-Session state: `history`, `scan_done`, `scan_error` — initialised once, persist
-across reruns within the session
-
-
-**Key decisions / deviations from plan:**
-
-
-`dotenv_values()` used for form pre-fill (reads file without mutating os.environ);
-`os.environ` only mutated at scan time — keeps the two concerns separate
-Chat history stored as [{"role": "user"|"assistant", "content": "..."}] — exactly the
-`format ask_question()` expects, so no translation layer needed
-`st.stop()` used to gate tabs before scan — cleaner than wrapping everything in an if
-
-
-**Key files:**
-
-
-`app.py` — entire UI; single file
-
-
-
+---
 
 ## Module 7 — Privacy Layer ✅ DONE
 
 **What's done:**
-- `pii_masker.py` — column-name pattern matching against ~40 PII patterns (email, phone, ssn, password, address, lat/lng, names, etc.)
-- `mask_sample_rows()` replaces matched column values with `[MASKED]` before any LLM call
-- `pii_columns_in_table()` returns flagged column list for logging/UI
-- `schema_snapshot.py` updated — accepts `pii_masking: bool` param, calls masker, logs `pii_columns_masked` per table in snapshot
-- UI toggle in sidebar (on by default); masked columns shown in collapsible expander after scan
-- Verified: `email`, `first_name`, `last_name` masked in customers; non-PII tables unaffected
+- `pii_masker.py` — ~40 PII column-name patterns, replaces values with `[MASKED]`
+- `schema_snapshot.py` updated — `pii_masking: bool` param, logs `pii_columns_masked` per table
+- UI toggle (on by default); masked columns shown in sidebar expander
 
-**Key files:**
-- `pii_masker.py`
-- `schema_snapshot.py` (updated)
-- `app.py` (toggle + masked columns expander)
+**Key files:** `pii_masker.py`, `schema_snapshot.py` (updated), `app.py`
 
 ---
 
 ## Module 8 — Scale & Robustness Testing ✅ DONE
 
 **What's done:**
-- 3 new tables added: `suppliers`, `inventory`, `returns`
-- `suppliers` — 10 rows, joins to `products.supplier_id` (new FK column)
-- `inventory` — one row per product, tracks `quantity_on_hand` and `reorder_threshold`
-- `returns` — ~60% of cancelled/refunded order items, with aligned `refund_amount` (null for pending/rejected)
-- New cross-table traps: `suppliers.country` vs `customers.country` (no FK, different entities); `status` now spans 6 tables
-- Agent 2 verified clean on all 8 tables — traps caught correctly, no truncation
-- Schema drift detection wired into UI — "Check for Schema Drift" button in sidebar, no LLM call, pure structural diff
-- Error handling added: `get_engine()` validates connection on init, raises `ConnectionError` with clean message; `ask_question()` wraps LLM call in try/except returning Mode C on failure
+- 3 new tables: `suppliers`, `inventory`, `returns` (8 tables total)
+- New cross-table traps: `suppliers.country` vs `customers.country`; `status` now spans 6 tables
+- Schema drift detection wired into UI sidebar
+- `get_engine()` validates connection on init; `ask_question()` wraps LLM call in try/except
 
 **Key files:**
-- `add_tables.sql` — DDL for 3 new tables + `ALTER TABLE products ADD COLUMN supplier_id`
-- `generate_new_tables.py` — Faker population, data aligned with existing orders/products
-- `drift_detector.py` (existing, now wired to UI)
-- `app.py` (drift button added to sidebar)
-- `connectors/postgres.py` (connection error handling)
-- `agents/data_concierge.py` (LLM error handling)
+- `add_tables.sql`, `generate_new_tables.py`, `drift_detector.py`, `app.py`
 
 ---
 
-## Module 9 — Context Pack + Accuracy Demo 🔄 IN PROGRESS
+## Module 9 — Context Pack + Accuracy Demo ✅ DONE (9d deferred)
 
-**What's done (9a ✅, 9b ✅, 9c ✅ — 9d deferred):**
+**What's done:**
 
-**9a — Context Pack alias + download button:**
-- `write_analysis()` in `agents/business_analyst.py` copies `schema_analysis.json` → `data/context_pack.json` via `shutil.copy2` after every scan — zero internal renaming, just the alias
-- `data/context_pack.json` confirmed present and up to date
-- Sidebar download button (`⬇️ Download Context Pack`) pointing at `context_pack.json`
-- `"use_context_pack": True` initialised in `st.session_state` defaults
+**9a ✅ — Context Pack alias + download button:**
+- `write_analysis()` copies `schema_analysis.json` → `data/context_pack.json` via `shutil.copy2`
+- Sidebar download button (`⬇️ Download Context Pack`)
 
-**9b — `use_context_pack` flag:**
-- `ask_question()` signature updated: `use_context_pack: bool = True`
-- `_load_raw_schema()` added to `data_concierge.py` — reads `schema_snapshot.json`, returns column names + types only (no meanings, no flags, no relationships)
-- Conditional: `docs = _load_docs(docs_path) if use_context_pack else _load_raw_schema()`
-- Toggle added to Chat tab: `st.toggle("🧠 Use Context Pack", value=True, ...)`
-- Toggle value wired through to `ask_question(..., use_context_pack=use_context_pack)`
-- Bug fixed: original `ask_question()` was missing both the param and the conditional load line
+**9b ✅ — `use_context_pack` flag:**
+- `ask_question()` accepts `use_context_pack: bool = True`
+- `_load_raw_schema()` — column names + types only, no meanings/flags/relationships
+- Toggle wired in Chat tab
 
-**9c — Failure question confirmed:**
+**9c ✅ — Failure question confirmed:**
 - Question: *"Compare channel performance between marketing and sales"*
-- Raw schema mode: produces UNION ALL across disjoint channel value sets — structurally valid SQL, analytically meaningless (marketing channels ≠ sales channels, no FK)
-- Context Pack mode: correctly identifies the ambiguity and avoids the false join
+- Raw schema mode: produces UNION ALL across disjoint channel value sets — valid SQL, analytically meaningless
+- Context Pack mode: correctly identifies ambiguity, avoids false join
 - This is the core proof point for the thesis
 
-**9d — Context Pack Impact tab (deferred):**
-- Side-by-side comparison UI in Streamlit — not yet implemented
-- Still on the list; lower priority than MCP server for submission demo
+**9d ⏸ Deferred:**
+- Side-by-side Context Pack Impact tab not implemented — lower priority than MCP demo
 
 **Key files:**
-- `agents/business_analyst.py` — `write_analysis()` (shutil.copy2 alias)
-- `agents/data_concierge.py` — `use_context_pack` param, `_load_raw_schema()`
-- `app.py` — download button, use_context_pack toggle, session state
-- `data/context_pack.json` — alias output
+- `agents/business_analyst.py`, `agents/data_concierge.py`, `app.py`, `data/context_pack.json`
 
 ---
-
 
 ## Module 10 — Adaptive Architecture + Real Database ✅ DONE
 
 **What's done:**
-- Bug 11 fixed: `build_cross_table_index()` now skips `UNIVERSAL_COLUMNS` and columns
-  appearing in >40% of tables (filter only active on schemas >10 tables to preserve
-  demo DB ambiguity traps); per-column table list capped at 8 entries
-- Bug 10 fixed: `sample_rows()` now uses adaptive column selection by tier —
-  ≤50 cols: SELECT *, 50–150 cols: priority-based 50-col budget, 150+: 20-col/3-row
-  hard budget; all string values truncated at 150 chars universally
-- T2 query routing implemented: `complexity_score` and `tier` computed at scan time
-  and stored in Context Pack top-level metadata; at query time, T2 schemas inject
-  full context only for matched tables + FK neighbors, summaries for the rest;
-  fallback to full injection when no table hints found in question
+- `build_cross_table_index()` bug fixed: skips `UNIVERSAL_COLUMNS`, skips columns in >40% of tables (guard: inactive on ≤10 tables), caps at 8 entries per column
+- `sample_rows()` adaptive column selection: ≤50 cols → SELECT *; 50–150 cols → 50-col priority budget; 150+ cols → 20-col/3-row hard budget; strings truncated at 150 chars universally
+- T2 query routing: `complexity_score` and `tier` computed at scan time, stored in Context Pack top-level metadata; T2 injects full context only for matched tables + FK neighbors
 - `SchemaAnalysis` model updated with `complexity_score: float` and `tier: int` fields
-- `schema_snapshot.py` updated to pass `columns` to `sample_rows()` for adaptive sampling
-- Real database smoke test: bird-interact-lite PostgreSQL container (18 databases)
-  run via Docker; tested against `crypto` database; scan completed cleanly with no
-  truncation errors; `complexity_score` and `tier` confirmed present in context_pack.json
-- Port conflict resolved: local PostgreSQL 18 and Docker both binding 5432;
-  fixed by stopping local service during bird-interact testing
+- Real database smoke test: **bird-interact-lite** PostgreSQL container, `crypto` database (10 tables, obfuscated column names: `ordervault`, `userstamp`, `riskandmarginpivot`, etc.) — scan completed cleanly, `complexity_score: 89.0`, `tier: 1` confirmed in context_pack.json
 
-**Key decisions / deviations from plan:**
-- Used bird-interact-lite (`crypto` database) instead of Pagila — same validation
-  goal, Docker-based setup
-- UNIVERSAL_COLUMNS percentage filter gated on `total_tables > 10` — prevents
-  accidental suppression of intentional ambiguity traps in the 8-table demo DB
-- T2 threshold set at complexity_score ≥ 250; bird-interact crypto DB and demo DB
-  both land in T1 — T2 infrastructure is live and correct, activates on enterprise
-  schemas without any code change
+**Key decisions:**
+- Used bird-interact-lite (`crypto` DB) instead of Pagila — genuine enterprise-style obfuscated naming, Docker-based
+- T2 threshold: complexity_score ≥ 250; crypto DB lands in T1 — T2 infrastructure live, activates on larger schemas without code change
+- Port conflict (local PG18 + Docker both on 5432) resolved by stopping local service during test
 
 **Key files:**
-- `agents/business_analyst.py` — `build_cross_table_index()`, `write_analysis()`
-- `agents/data_concierge.py` — `_load_docs()`, T2 routing, `ask_question()`
-- `connectors/postgres.py` — `sample_rows()`, `_select_columns_adaptive()`, `_truncate_strings()`
-- `schema_snapshot.py` — columns passed to `sample_rows()`
-- `models/analysis_models.py` — `complexity_score`, `tier` fields on `SchemaAnalysis`
+- `agents/business_analyst.py`, `agents/data_concierge.py`, `connectors/postgres.py`
+- `schema_snapshot.py`, `models/analysis_models.py`
 
 ---
 
-## Module 11 — Docker + Public Deploy ⬜ NOT STARTED
+## Module 11 — MCP Server ✅ DONE
+
+**What's done:**
+- `mcp_server.py` in repo root — FastMCP server (stdio transport) exposing 3 tools:
+  - `get_context_pack()` — returns full Context Pack JSON; primary tool for Claude to understand the schema
+  - `query_documentation(table_name)` — returns single table entry; token-efficient for targeted lookups
+  - `check_drift()` — calls `drift_detector.detect_drift()` with absolute baseline path; pure structural diff, no LLM
+- All paths resolved via `Path(__file__).parent.resolve()` — cwd-independent, works when Claude Desktop spawns the process
+- `load_dotenv(REPO_ROOT / ".env")` with explicit absolute path at module load time — DB credentials available before any tool triggers `get_engine()`
+- `sys.path.insert(0, str(REPO_ROOT))` — guarantees local imports resolve correctly
+
+**Verified working:** Confirmed live via Claude Desktop — `get_context_pack()` returned 10-table crypto DB Context Pack (`complexity_score: 89.0`, `tier: 1`, generated 2026-07-08T11:18:08). All 3 tools registered and callable.
+
+**Install:** `pip install "mcp[cli]>=1.0,<2.0"`
+
+**Claude Desktop config:**
+```json
+{
+  "mcpServers": {
+    "datasage": {
+      "command": "C:\\path\\to\\DataSage\\venv\\Scripts\\python.exe",
+      "args": ["C:\\path\\to\\DataSage\\mcp_server.py"]
+    }
+  }
+}
+```
+
+Standard config path: `%APPDATA%\Claude\claude_desktop_config.json`
+MSIX (Store) path: `%LOCALAPPDATA%\Packages\Claude_pzs8sxrjxfjjc\LocalCache\Roaming\Claude\claude_desktop_config.json`
+
+**Key files:**
+- `mcp_server.py`
 
 ---
 
-## Module 12 — Submission Prep ⬜ NOT STARTED
+## Module 12 — Docker + Public Deploy ⬜ NOT STARTED
+
+**Plan:**
+- Base image: `python:3.13-slim`
+- `docker-compose.yml`: `db` (postgres:18) + `app` service; `app` waits on `db` healthcheck
+- Seed `db` from `pg_dump` of current populated data in `/docker-entrypoint-initdb.d/` — don't re-run `generate_demo_data.py` at container start
+- Test from a clean clone before trusting it
+- Public deploy: Neon or Supabase free tier (demo DB) + Streamlit Community Cloud (app)
+- Only `datasage_reader` (read-only) credentials in public secrets
+- AMD endpoint swap if MI300X capacity opens before Jul 11: `LLM_BASE_URL` + `LLM_MODEL` in `.env`
+
+---
+
+## Module 13 — Submission Prep ⬜ NOT STARTED
+
+**Plan:**
+
+**README structure:**
+1. Problem stat (cite the 90% benchmark → 17% real-world accuracy research)
+2. Context Pack definition — what it is, what it contains
+3. Accuracy demo GIF (same question, raw vs Context Pack)
+4. Mermaid architecture diagram (renders natively on GitHub)
+5. Quickstart: `docker-compose up` (3 commands max)
+6. MCP setup section
+7. Known limitations (SQL blocklist, regex-only PII)
+8. MIT license
+
+**Demo video (2–3 min):**
+Hook (accuracy stat) → channel trap explained → Context Pack Impact (wrong SQL vs right SQL) → MCP in Claude Desktop (tools appearing, channel question answered from flags) → drift detection → close on portability.
+
+**Done when:** repo, README, video, and lablab submission all live before July 11, 2026.
 
 ---
 
