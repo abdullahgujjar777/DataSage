@@ -23,7 +23,7 @@ def collect_schema_and_samples(pii_masking: bool = True) -> list[dict]:
     output = []
     for table in schemas:
         column_names = [col.name for col in table.columns]
-        samples = sample_rows(engine, table.table_name, limit=8)
+        samples = sample_rows(engine, table.table_name, limit=8, columns=table.columns)
         raw_rows = [s.row for s in samples]
 
         if pii_masking:

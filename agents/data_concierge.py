@@ -16,6 +16,8 @@ from langchain_core.exceptions import LangChainException
 
 import re
 
+from collections import defaultdict
+
 load_dotenv()
 
 ANALYSIS_PATH = Path("data/schema_analysis.json")
@@ -39,21 +41,63 @@ def _get_llm() -> ChatOpenAI:
     )
 
 
-# Documentation context builder
-def _load_docs(path: Path = ANALYSIS_PATH) -> str:
+def _format_table_full(t: dict) -> str:
+    cols = ", ".join(f"{c['column']}({c['meaning']})" for c in t["column_meanings"])
+    rel = t.get("relationships", "").strip()
+    flags = "; ".join(f"⚠{f['column']}: {f['note']}" for f in t.get("ambiguity_flags", []))
+    entry = f"[{t['table_name']}] {t['purpose']}\nCols: {cols}"
+    if rel:
+        entry += f"\nFK: {rel}"
+    if flags:
+        entry += f"\n{flags}"
+    return entry
+
+
+def _format_table_summary(t: dict) -> str:
+    return f"[{t['table_name']}] {t['purpose']}"
+
+
+def _load_docs(path: Path = ANALYSIS_PATH, question: str = "") -> str:
     data = json.loads(path.read_text(encoding="utf-8"))
-    lines = []
-    for t in data["tables"]:
-        cols = ", ".join(f"{c['column']}({c['meaning']})" for c in t["column_meanings"])
-        rel = t.get("relationships", "").strip()
-        flags = "; ".join(f"⚠{f['column']}: {f['note']}" for f in t.get("ambiguity_flags", []))
-        entry = f"[{t['table_name']}] {t['purpose']}\nCols: {cols}"
-        if rel:
-            entry += f"\nFK: {rel}"
-        if flags:
-            entry += f"\n{flags}"
-        lines.append(entry)
-    return "\n---\n".join(lines)
+    tables = data["tables"]
+    tier = data.get("tier", 1)
+
+    if tier == 1 or not question:
+        return "\n---\n".join(_format_table_full(t) for t in tables)
+
+    # T2: inject full context only for relevant tables + FK neighbors
+    question_lower = question.lower()
+
+    # Build bidirectional FK neighbor map from relationships strings
+    fk_neighbors: dict[str, set[str]] = defaultdict(set)
+    for t in tables:
+        for ref_table in re.findall(r'\b(\w+)\.\w+\b', t.get("relationships", "")):
+            fk_neighbors[t["table_name"]].add(ref_table)
+            fk_neighbors[ref_table].add(t["table_name"])
+
+    # Tables whose name or column names appear in the question
+    matched: set[str] = set()
+    for t in tables:
+        if t["table_name"].lower() in question_lower:
+            matched.add(t["table_name"])
+        for c in t["column_meanings"]:
+            if c["column"].lower() in question_lower:
+                matched.add(t["table_name"])
+
+    # Expand to FK neighbors
+    full_inject: set[str] = set(matched)
+    for t_name in matched:
+        full_inject |= fk_neighbors.get(t_name, set())
+
+    # Fallback: no hints found → full injection
+    if not full_inject:
+        return "\n---\n".join(_format_table_full(t) for t in tables)
+
+    return "\n---\n".join(
+        _format_table_full(t) if t["table_name"] in full_inject else _format_table_summary(t)
+        for t in tables
+    )
+
 
 # for comparison
 def _load_raw_schema(path: Path = SNAPSHOT_PATH) -> str:
@@ -211,7 +255,7 @@ def ask_question(
     llm = _get_llm()
 
     try:
-        docs = _load_docs(docs_path) if use_context_pack else _load_raw_schema() #test case
+        docs = _load_docs(docs_path, question=question) if use_context_pack else _load_raw_schema() #test case
         safe_docs = docs.replace("{", "{{").replace("}", "}}")
         system_content = SYSTEM_PROMPT.format(docs=safe_docs)
         messages = _build_messages(system_content, history, question)

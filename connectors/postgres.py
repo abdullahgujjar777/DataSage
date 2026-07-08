@@ -80,18 +80,73 @@ def get_schema(engine) -> list[TableSchema]:
     return schemas
 
 
+def _select_columns_adaptive(columns: list[ColumnInfo], budget: int) -> list[str]:
+    selected: list[str] = []
+    seen: set[str] = set()
 
+    def _add(name: str):
+        if name not in seen and len(selected) < budget:
+            selected.append(name)
+            seen.add(name)
+
+    # Priority 1 — PKs and FK columns
+    for c in columns:
+        if c.is_primary_key or c.foreign_key is not None:
+            _add(c.name)
+
+    # Priority 2 — NOT NULL columns
+    for c in columns:
+        if not c.nullable:
+            _add(c.name)
+
+    # Priority 3 — business-signal patterns
+    _PATTERNS = ("_status", "_date", "_amount", "_type", "_name", "_code",
+                 "status", "date", "amount", "type", "name", "code")
+    for c in columns:
+        if any(p in c.name.lower() for p in _PATTERNS):
+            _add(c.name)
+
+    # Fill remaining budget in original column order
+    for c in columns:
+        _add(c.name)
+
+    return selected
+
+
+def _truncate_strings(row: dict, max_len: int = 150) -> dict:
+    return {
+        k: (v[:max_len] if isinstance(v, str) and len(v) > max_len else v)
+        for k, v in row.items()
+    }
 
 
 
 from sqlalchemy import text
 from models.schema_models import SampleRow
 
-def sample_rows(engine, table_name: str, limit: int = 8) -> list[SampleRow]:
-    query = text(f'SELECT * FROM "{table_name}" LIMIT :limit')
+def sample_rows(
+    engine,
+    table_name: str,
+    limit: int = 8,
+    columns: list[ColumnInfo] | None = None,
+) -> list[SampleRow]:
+    n_cols = len(columns) if columns else 0
 
+    if columns is None or n_cols <= 50:
+        col_clause = "*"
+        row_limit = limit
+    elif n_cols <= 150:
+        selected = _select_columns_adaptive(columns, budget=50)
+        col_clause = ", ".join(f'"{c}"' for c in selected)
+        row_limit = limit
+    else:
+        selected = _select_columns_adaptive(columns, budget=20)
+        col_clause = ", ".join(f'"{c}"' for c in selected)
+        row_limit = 3
+
+    query = text(f'SELECT {col_clause} FROM "{table_name}" LIMIT :limit')
     with engine.connect() as conn:
-        result = conn.execute(query, {"limit": limit})
+        result = conn.execute(query, {"limit": row_limit})
         rows = result.mappings().all()
 
-    return [SampleRow(table_name=table_name, row=dict(row)) for row in rows]
+    return [SampleRow(table_name=table_name, row=_truncate_strings(dict(row))) for row in rows]

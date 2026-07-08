@@ -328,7 +328,43 @@ Chat history stored as [{"role": "user"|"assistant", "content": "..."}] — exac
 
 ---
 
-## Module 10 — MCP Server ⬜ NOT STARTED
+
+## Module 10 — Adaptive Architecture + Real Database ✅ DONE
+
+**What's done:**
+- Bug 11 fixed: `build_cross_table_index()` now skips `UNIVERSAL_COLUMNS` and columns
+  appearing in >40% of tables (filter only active on schemas >10 tables to preserve
+  demo DB ambiguity traps); per-column table list capped at 8 entries
+- Bug 10 fixed: `sample_rows()` now uses adaptive column selection by tier —
+  ≤50 cols: SELECT *, 50–150 cols: priority-based 50-col budget, 150+: 20-col/3-row
+  hard budget; all string values truncated at 150 chars universally
+- T2 query routing implemented: `complexity_score` and `tier` computed at scan time
+  and stored in Context Pack top-level metadata; at query time, T2 schemas inject
+  full context only for matched tables + FK neighbors, summaries for the rest;
+  fallback to full injection when no table hints found in question
+- `SchemaAnalysis` model updated with `complexity_score: float` and `tier: int` fields
+- `schema_snapshot.py` updated to pass `columns` to `sample_rows()` for adaptive sampling
+- Real database smoke test: bird-interact-lite PostgreSQL container (18 databases)
+  run via Docker; tested against `crypto` database; scan completed cleanly with no
+  truncation errors; `complexity_score` and `tier` confirmed present in context_pack.json
+- Port conflict resolved: local PostgreSQL 18 and Docker both binding 5432;
+  fixed by stopping local service during bird-interact testing
+
+**Key decisions / deviations from plan:**
+- Used bird-interact-lite (`crypto` database) instead of Pagila — same validation
+  goal, Docker-based setup
+- UNIVERSAL_COLUMNS percentage filter gated on `total_tables > 10` — prevents
+  accidental suppression of intentional ambiguity traps in the 8-table demo DB
+- T2 threshold set at complexity_score ≥ 250; bird-interact crypto DB and demo DB
+  both land in T1 — T2 infrastructure is live and correct, activates on enterprise
+  schemas without any code change
+
+**Key files:**
+- `agents/business_analyst.py` — `build_cross_table_index()`, `write_analysis()`
+- `agents/data_concierge.py` — `_load_docs()`, T2 routing, `ask_question()`
+- `connectors/postgres.py` — `sample_rows()`, `_select_columns_adaptive()`, `_truncate_strings()`
+- `schema_snapshot.py` — columns passed to `sample_rows()`
+- `models/analysis_models.py` — `complexity_score`, `tier` fields on `SchemaAnalysis`
 
 ---
 

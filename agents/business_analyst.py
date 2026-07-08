@@ -120,8 +120,13 @@ relationships: "customer_id links to customers.customer_id."
 """
 
 
+UNIVERSAL_COLUMNS = frozenset({
+    "id", "created_at", "updated_at", "deleted_at", "is_active", "is_deleted",
+    "created_by", "updated_by", "metadata", "description", "notes", "uuid", "version",
+})
 
 def build_cross_table_index(tables: list[dict]) -> str:
+    total_tables = len(tables)
     name_to_tables = defaultdict(list)
     for table in tables:
         for col in table["columns"]:
@@ -133,6 +138,12 @@ def build_cross_table_index(tables: list[dict]) -> str:
     for col_name, table_names in name_to_tables.items():
         if len(table_names) < 2:
             continue
+        if col_name in UNIVERSAL_COLUMNS:
+            continue
+        if total_tables > 10 and len(table_names) > total_tables * 0.4:
+            continue
+        table_names = table_names[:8]  # cap at 8 entries
+
         sampled_values = {
             t: sorted({
                 row[col_name]
@@ -221,6 +232,17 @@ def run_analysis(snapshot_path: Path = SNAPSHOT_PATH) -> SchemaAnalysis:
 
 def write_analysis(analysis: SchemaAnalysis, path: Path = OUTPUT_PATH) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Compute + attach complexity metadata before writing
+    table_count = len(analysis.tables)
+    avg_cols = sum(len(t.column_meanings) for t in analysis.tables) / max(table_count, 1)
+    complexity_score = round(table_count * avg_cols, 1)
+    tier = 2 if complexity_score >= 250 else 1
+    analysis = analysis.model_copy(update={
+        "complexity_score": complexity_score,
+        "tier": tier,
+    })
+
     path.write_text(analysis.model_dump_json(indent=2), encoding="utf-8")
     import shutil
     shutil.copy2(path, path.parent / "context_pack.json")

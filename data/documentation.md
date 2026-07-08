@@ -1,160 +1,237 @@
 # DataSage — Auto-Generated Documentation
 
-_Generated: 2026-07-04T11:42:04.208762+00:00_
+_Generated: 2026-07-08T11:18:08.549687+00:00_
 
-## returns
+## users
 
-**Purpose:** This table records individual product return transactions. It tracks which order and order line item is being returned, the return date, reason, processing status, and the refund amount.
+**Purpose:** This table records each system user. It tracks a unique internal node ID, a public user identifier, and the account scope (Margin, Spot, or Options).
 
 **Columns:**
-- `return_id`: Unique identifier for the return record.
-- `order_id`: Identifier of the original order linked to this return.
-- `order_item_id`: Identifier of the specific order line item that is being returned.
-- `return_date`: Date and time when the return was recorded.
-- `reason`: Text code describing why the product was returned (e.g., changed_mind, wrong_item, defective).
-- `status`: Current processing state of the return (e.g., approved, refunded, pending).
-- `refund_amount`: Monetary amount paid back to the customer for the return.
+- `usersnode`: Internal numeric identifier for the user record.
+- `userstamp`: External user code, shown with trailing spaces in the sample.
+- `acctscope`: The type of account the user is associated with (e.g., Margin, Spot, Options).
 
-**Relationships:** order_id links to orders.order_id and order_item_id links to order_items.order_item_id.
+**Relationships:** None (no foreign keys declared in this table).
 
-**Business Value:** Enables analysis of return reasons, volumes, and financial impact of refunds, as well as linking returns back to original orders for customer service follow‑up.
+**Business Value:** Allows the business to look up a user by code and see which account category they belong to, supporting user‑level reporting and segmentation.
 
 **⚠️ Ambiguity Flags:**
-- `refund_amount`: Currency is not indicated in the sample; amount is likely monetary but the unit (e.g., USD) is unclear.
-- `status`: Status records return processing state; other tables also have a status column with different value sets, only the word 'refunded' overlaps, which may be coincidental rather than a defined relationship.
+- `usersnode`: It appears to be an internal surrogate key, but the sample does not explain whether it has meaning beyond uniqueness.
+- `acctscope`: Values are Margin, Spot, and Options; it is unclear if these represent product types, permission levels, or something else.
 
-## suppliers
+## riskandmargin
 
-**Purpose:** This table stores information about product suppliers. It tracks each supplier's name, country of operation, contact email, and current status.
+**Purpose:** This table records risk and margin information linked to a specific order. It stores a JSON profile containing detailed risk, position, collateral, and margin rate metrics for that order.
 
 **Columns:**
-- `supplier_id`: Unique identifier for the supplier.
-- `supplier_name`: Legal or commercial name of the supplier.
-- `country`: Country where the supplier is based.
-- `contact_email`: Email address for contacting the supplier.
-- `status`: Current activity state of the supplier (sample shows 'active').
+- `riskandmarginpivot`: Internal identifier for the risk‑and‑margin record.
+- `ordervault`: Identifier of the order that this risk profile belongs to (matches orders.recordvault).
+- `risk_margin_profile`: A JSON document with nested sections such as iceberg, leverage, position, collateral, margin_rates, price_levels, risk_factors, and margin_thresholds.
 
-**Relationships:** supplier_id is referenced by products.supplier_id.
+**Relationships:** ordervault links to orders.recordvault.
 
-**Business Value:** Supports reporting on supplier geography, activity status, and enables joins to product data to analyse supplier performance.
+**Business Value:** Enables analysts to examine an individual order's risk exposure, margin requirements, and collateral composition, supporting margin‑call and risk‑management decisions.
 
 **⚠️ Ambiguity Flags:**
-- `status`: Status indicates supplier activity, but other tables use a status column for different concepts; overlap is limited to generic words like 'active'.
-- `country`: Country lists supplier locations; customers also have a country column for customer residence with different values, and no overlapping values are seen in the samples.
-
-## inventory
-
-**Purpose:** This table keeps a snapshot of stock levels for each product. It records how many units are on hand, the reorder threshold, and when the record was last updated.
-
-**Columns:**
-- `inventory_id`: Unique identifier for the inventory record.
-- `product_id`: Identifier of the product to which the stock counts belong.
-- `quantity_on_hand`: Number of units currently available in inventory.
-- `reorder_threshold`: Minimum quantity that triggers a reorder request.
-- `last_updated`: Timestamp of the most recent inventory count update.
-
-**Relationships:** product_id links to products.product_id.
-
-**Business Value:** Allows calculation of stock availability, identification of items needing replenishment, and timing of inventory updates.
-
-## marketing_campaigns
-
-**Purpose:** This table logs marketing campaigns run by the company. It tracks each campaign's name, channel, dates, budget, and lifecycle status.
-
-**Columns:**
-- `campaign_id`: Unique identifier for the campaign.
-- `campaign_name`: Descriptive name of the marketing effort.
-- `channel`: Medium used for the campaign (e.g., social_media, affiliate, paid_search).
-- `start_date`: Date when the campaign began.
-- `end_date`: Date when the campaign ended or null if ongoing.
-- `budget`: Planned monetary spend for the campaign.
-- `status`: Current lifecycle stage of the campaign (active, completed, paused).
-
-**Relationships:** 
-
-**Business Value:** Enables evaluation of marketing spend effectiveness, channel performance, and campaign timing.
-
-**⚠️ Ambiguity Flags:**
-- `channel`: Channel refers to marketing medium; orders also have a channel column for sales channels (in_store, marketplace, etc.) with different values and no overlap.
-- `status`: Status indicates campaign lifecycle; other tables use status for unrelated concepts, with only generic words overlapping, so the meaning is likely distinct.
-
-## customers
-
-**Purpose:** This table contains records for each customer. It tracks personal contact details, signup date, country of residence, segment classification, and current activity status.
-
-**Columns:**
-- `customer_id`: Unique identifier for the customer.
-- `email`: Customer's email address.
-- `first_name`: Customer's given name.
-- `last_name`: Customer's family name.
-- `signup_date`: Date the customer account was created.
-- `country`: Country where the customer resides.
-- `segment`: Business-assigned group indicating customer value or risk (e.g., new, at_risk, high_value, regular).
-- `status`: Current activity state of the customer account (active, inactive, churned).
-
-**Relationships:** 
-
-**Business Value:** Supports segmentation analysis, churn prediction, and geographic distribution of the customer base.
-
-**⚠️ Ambiguity Flags:**
-- `status`: Status reflects customer activity; other tables have a status column for different entities, with only generic overlap, suggesting distinct meanings.
-- `country`: Country lists customer residency; suppliers also have a country column for supplier location with different values and no overlap in the samples.
+- `risk_margin_profile`: The JSON fields are shown but the sample does not define the exact business meaning of each sub‑field or unit of measurement.
+- `ordervault`: It can be null in the sample, so it is unclear whether every order always has an associated risk profile.
 
 ## orders
 
-**Purpose:** This table records each purchase order placed by a customer. It tracks the customer, order date, sales channel, current order status, and total monetary amount.
+**Purpose:** This table records each trade order placed by a user. It tracks identifiers, timestamps, market pair, order type, side, price, quantity, notional amount, lifecycle status, and source information.
 
 **Columns:**
-- `order_id`: Unique identifier for the order.
-- `customer_id`: Identifier of the customer who placed the order.
-- `order_date`: Timestamp when the order was created.
-- `status`: Current fulfillment or financial state of the order (e.g., cancelled, refunded, delivered).
-- `channel`: Sales channel through which the order was made (in_store, marketplace, mobile_app, web).
-- `total_amount`: Total monetary value of the order.
+- `orderspivot`: Internal sequential ID for the order row.
+- `recordvault`: Unique order code used as a reference by other tables.
+- `timecode`: Date‑time when the order record was created or last updated.
+- `exchspot`: Code of the exchange where the order was sent (padded with spaces in the sample).
+- `mktnote`: Market pair symbol, e.g., ETH‑USDT, BTC‑USDT.
+- `orderstamp`: Another order identifier shown with trailing spaces.
+- `userlink`: User code of the person who placed the order (links to users.userstamp).
+- `ordertune`: Order execution style such as Stop, Market, or Limit.
+- `dealedge`: Whether the order is a Buy or Sell.
+- `dealquote`: Price per unit quoted for the order.
+- `dealcount`: Quantity of the asset to trade.
+- `notionsum`: Total notional value (price multiplied by quantity).
+- `orderflow`: Current lifecycle state like New, Filled, PartiallyFilled, Cancelled.
+- `timespan`: Time‑in‑force code such as IOC, GTC, GTD.
+- `orderbase`: Source of the order, e.g., API, Web, Mobile.
+- `clientmark`: Client‑supplied reference string.
+- `createspot`: Timestamp when the order was originally created.
+- `updatespot`: Timestamp of the most recent update to the order.
 
-**Relationships:** customer_id links to customers.customer_id.
+**Relationships:** userlink links to users.userstamp.
 
-**Business Value:** Enables revenue reporting, channel performance analysis, and monitoring of order lifecycle stages.
+**Business Value:** Provides the foundation for measuring trading volume, revenue per market, order success rates, and user activity patterns across different execution venues and order types.
 
 **⚠️ Ambiguity Flags:**
-- `total_amount`: Monetary unit is not specified; assumed to be a currency but the exact type (e.g., USD) is unclear.
-- `status`: Status records order fulfillment state; other tables also have a status column with different vocabularies, only generic overlap observed.
-- `channel`: Channel indicates sales channel; marketing_campaigns also has a channel column for marketing mediums with different values and no overlap.
+- `exchspot`: The sample shows padded strings like "EX203"; it is not clear whether the code represents a specific exchange, a venue region, or something else.
+- `orderbase`: Values API, Web, Mobile suggest order origin, but the exact distinction (e.g., automated vs. manual) is not defined.
+- `clientmark`: Purpose of this client‑supplied identifier is unclear from the sample.
+- `timespan`: Codes IOC, GTC, GTD are shown but the sample does not explain their exact meaning.
+- `ordertune`: Stop, Market, Limit appear to be order types, yet the business rules distinguishing them are not described.
 
-## order_items
+## accountbalances
 
-**Purpose:** This table lists the individual line items that belong to each order. It records which product was sold, the quantity, and the price per unit at the time of sale.
+**Purpose:** This table records the balance snapshot for each user. It tracks total wallet value, amounts that are available, frozen, required for margin, and profit‑and‑loss figures.
 
 **Columns:**
-- `order_item_id`: Unique identifier for the order line item.
-- `order_id`: Identifier of the order that contains this line item.
-- `product_id`: Identifier of the product being sold.
-- `quantity`: Number of units of the product purchased in this line item.
-- `unit_price`: Price per single unit of the product for this line item.
+- `accountbalancesnode`: Internal ID for the balance record.
+- `walletsum`: Total value of all assets held by the user.
+- `availsum`: Portion of the wallet that is free to trade.
+- `frozensum`: Amount that is locked or otherwise unavailable.
+- `margsum`: Margin requirement amount for open positions.
+- `unrealline`: Unrealized profit or loss (floating P/L).
+- `realline`: Realized profit or loss (settled P/L).
+- `usertag`: User code linking the balance to a user (matches users.userstamp).
 
-**Relationships:** order_id links to orders.order_id and product_id links to products.product_id.
+**Relationships:** usertag links to users.userstamp.
 
-**Business Value:** Supports detailed revenue breakdowns, product popularity tracking, and calculation of average selling price per product.
+**Business Value:** Enables calculation of net asset value per client, assessment of margin sufficiency, and performance reporting of realized vs. unrealized gains.
 
 **⚠️ Ambiguity Flags:**
-- `unit_price`: Currency for the unit price is not indicated in the sample data.
+- `walletsum, availsum, frozensum, margsum`: The currency or unit (e.g., USD, USDC) is not specified in the sample.
+- `unrealline, realline`: These appear to be profit‑and‑loss amounts, but the sign convention (positive vs. negative) is not explained.
 
-## products
+## orderexecutions
 
-**Purpose:** This table catalogs the products that can be sold. It tracks each product's name, category, price, availability status, and its supplier.
+**Purpose:** This table records the execution details of each order. It tracks how much of the order was filled, remaining quantity, fill price, total fill value, expiration time, cancellation reason, and execution side.
 
 **Columns:**
-- `product_id`: Unique identifier for the product.
-- `product_name`: Descriptive name of the product.
-- `category`: Business category or segment the product belongs to (e.g., beauty, toys, home_goods, sports).
-- `price`: Standard selling price for the product.
-- `status`: Current availability state of the product (active, discontinued, out_of_stock).
-- `supplier_id`: Identifier of the supplier that provides this product.
+- `orderexecmark`: Internal ID for the execution record.
+- `fillcount`: Quantity that was actually filled.
+- `remaincount`: Quantity still pending after this execution.
+- `fillquote`: Price at which the fill occurred.
+- `fillsum`: Total monetary value of the filled portion.
+- `expirespot`: Timestamp when the order would expire if not filled.
+- `cancelnote`: Reason given for cancellation, if any.
+- `exectune`: Indicator of maker or taker execution; values seen are "Maker", "Taker" or null.
+- `ordersmark`: Order code that this execution belongs to (matches orders.recordvault).
 
-**Relationships:** supplier_id links to suppliers.supplier_id.
+**Relationships:** ordersmark links to orders.recordvault.
 
-**Business Value:** Allows analysis of product pricing, category performance, and supplier contributions to the catalog.
+**Business Value:** Provides the data needed to compute fill rates, slippage, and the effectiveness of order routing, as well as reasons for order cancellations.
 
 **⚠️ Ambiguity Flags:**
-- `price`: Monetary unit is not specified; assumed to be a currency but the exact type is unclear.
-- `status`: Status indicates product availability; other tables also have a status column with differing vocabularies, only generic overlap, suggesting separate meanings.
+- `exectune`: When null, it is unclear whether the execution side is unknown or not applicable.
+- `cancelnote`: Only some rows have a value; the full list of possible reasons is not defined.
+- `fillquote, fillsum`: Units (currency) are not stated in the sample.
+
+## systemmonitoring
+
+**Purpose:** This table records operational performance metrics of the trading platform. It tracks API usage, latency, websocket status, rate limits, slippage, execution time, queue length, market impact measures, and a link to analytics indicators.
+
+**Columns:**
+- `systemmonitoringpivot`: Internal ID for the monitoring snapshot.
+- `apireqtotal`: Total number of API calls handled.
+- `apierrtotal`: Total number of API errors encountered.
+- `apilatmark`: Measured API latency (value masked in the sample).
+- `wsstate`: Current state of the websocket connection (Connected or Disconnected).
+- `rateremain`: Remaining API rate‑limit allowance.
+- `lastupdnote`: Internal identifier for the last update event.
+- `seqcode`: Sequence code associated with the snapshot.
+- `slipratio`: Ratio indicating price slippage, shown with positive or negative sign.
+- `exectimespan`: Execution time span value (units not specified).
+- `queueline`: Length of the processing queue at snapshot time.
+- `mkteffect`: Numeric factor representing market impact.
+- `priceeffect`: Numeric factor representing price impact.
+- `aitrack`: ID linking to a set of analytics indicators (matches analyticsindicators.analyticsindicatorsnode).
+
+**Relationships:** aitrack links to analyticsindicators.analyticsindicatorsnode.
+
+**Business Value:** Helps operations teams monitor system health, detect bottlenecks, and assess the impact of trading activity on market prices.
+
+**⚠️ Ambiguity Flags:**
+- `apilatmark`: The actual latency number is masked, so the unit (milliseconds, seconds) cannot be confirmed.
+- `slipratio`: Both positive and negative values appear; the business meaning of the sign is not explained.
+- `exectimespan`: Units for this time span are not defined in the sample.
+- `mkteffect, priceeffect`: The meaning of these numeric factors (e.g., percentage, basis points) is unclear.
+
+## fees
+
+**Purpose:** This table records the fees and rebates applied to each order. It tracks the fee tier, rate, total fee amount, currency, rebate rate, and total rebate for a given order.
+
+**Columns:**
+- `feesnode`: Internal ID for the fee record.
+- `feerange`: Label of the fee tier (e.g., Tier1, Tier2, etc.).
+- `feerate`: Proportion charged as fee (e.g., 0.0015).
+- `feetotal`: Total fee amount charged.
+- `feecoin`: Currency in which the fee is denominated (e.g., USDC, USDT, USD).
+- `rebrate`: Proportion given back as rebate.
+- `rebtotal`: Total rebate amount returned.
+- `orderslink`: Order code that this fee record is associated with (matches orders.recordvault).
+
+**Relationships:** orderslink links to orders.recordvault.
+
+**Business Value:** Allows calculation of total cost to clients per trade, assessment of revenue from fees, and evaluation of rebate programs.
+
+**⚠️ Ambiguity Flags:**
+- `feerange`: The tier names (Tier1‑Tier4) are shown but the business rules that assign a tier to an order are not defined.
+- `feecoin`: Multiple currencies appear; it is unclear whether conversion is applied elsewhere.
+
+## marketstats
+
+**Purpose:** This table records daily market statistics for each instrument. It tracks funding rates, open interest, daily volume, trade counts, turnover, price changes, high/low prices, VWAP, market size, supply figures, and liquidity rankings.
+
+**Columns:**
+- `marketstatsmark`: Internal ID for the daily market stats row.
+- `fundrate`: Funding rate applied to positions (value can be negative).
+- `fundspot`: Timestamp when the funding rate was recorded.
+- `openstake`: Open interest amount for the day.
+- `volday`: Total trading volume for the day (units not specified).
+- `tradeday`: Number of individual trades executed.
+- `tnoverday`: Total turnover value for the day.
+- `priceshiftday`: Percentage price change over the day.
+- `highspotday`: Highest price reached during the day.
+- `lowspotday`: Lowest price reached during the day.
+- `vwapday`: Volume‑weighted average price for the day.
+- `mktsize`: Overall market size (value not explicitly defined).
+- `circtotal`: Total circulating supply of the asset.
+- `totsupply`: Total supply of the asset.
+- `maxsupply`: Maximum possible supply of the asset.
+- `mkthold`: Proportion of market held (decimal fraction).
+- `traderank`: Rank of the market based on trading activity.
+- `liquidscore`: Liquidity score (higher indicates more liquid).
+- `volmeter`: Additional volume metric (unit not explained).
+- `mdlink`: Link to a market data snapshot (matches marketdata.marketdatanode).
+
+**Relationships:** mdlink links to marketdata.marketdatanode.
+
+**Business Value:** Supports market‑analysis teams in evaluating liquidity, price movement, funding cost, and supply dynamics for each trading pair.
+
+**⚠️ Ambiguity Flags:**
+- `volday, mktsize, circtotal, totsupply, maxsupply`: The units (e.g., contracts, dollars, tokens) are not indicated in the sample.
+- `fundrate`: Both positive and negative values appear; the business interpretation of a negative funding rate is not described.
+- `priceshiftday, liquidscore, volmeter`: The scale (percentage, points, index) is ambiguous from the sample alone.
+
+## marketdata
+
+**Purpose:** This table stores a snapshot of order‑book depth and quote information for a market at a specific moment. It includes ask/bid depth, price quotes, spread, and metadata about the exchange and market pair.
+
+**Columns:**
+- `marketdatanode`: Internal ID for the market data snapshot.
+- `quote_depth_snapshot`: JSON document containing depth (askdepth, biddepth, etc.), quotes (askquote, bidquote, midquote, etc.), spread details, and metadata such as exchange code, market pair, and timestamp.
+
+**Relationships:** None declared in this table (referenced by marketstats.mdlink and analyticsindicators.mdataref).
+
+**Business Value:** Provides the raw market state needed for pricing, liquidity analysis, and feeding downstream sentiment calculations.
+
+**⚠️ Ambiguity Flags:**
+- `quote_depth_snapshot`: The JSON structure is shown, but the business meaning of each numeric field (e.g., askdepth vs. askunits) is not explained.
+
+## analyticsindicators
+
+**Purpose:** This table records calculated market sentiment indicators derived from market data and market statistics. It links to a specific market data snapshot and daily market stats and stores a JSON of various sentiment metrics.
+
+**Columns:**
+- `analyticsindicatorsnode`: Internal ID for the sentiment indicator record.
+- `mdataref`: Reference to a market data snapshot (matches marketdata.marketdatanode).
+- `mstatsref`: Reference to daily market stats (matches marketstats.marketstatsmark).
+- `market_sentiment_indicators`: JSON object containing sub‑sections such as flow, walls, momentum, arbitrage, big_players, and oscillators with numeric and textual metrics.
+
+**Relationships:** mdataref links to marketdata.marketdatanode; mstatsref links to marketstats.marketstatsmark.
+
+**Business Value:** Enables traders and analysts to gauge market mood, potential price pressure, and trading dynamics using composite sentiment scores.
+
+**⚠️ Ambiguity Flags:**
+- `market_sentiment_indicators`: The JSON fields (e.g., instflow, buywallband, mktfeel) are shown but their precise business definitions and scales are not described in the sample.
