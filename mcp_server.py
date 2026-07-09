@@ -109,6 +109,18 @@ def check_drift() -> str:
         return format_drift_report(report)
     except Exception as e:
         return f"Drift check failed: {e}"
+    
+#Tool 4 get_raw_schema (use for comparison)
+@mcp.tool()
+def get_raw_schema() -> str:
+    """Returns raw column names and types only — no business context."""
+    data = json.loads(SNAPSHOT_PATH.read_text(encoding="utf-8"))
+    lines = []
+    for t in data["tables"]:
+        cols = ", ".join(f"{c['name']} ({c['type']})" for c in t["columns"])
+        lines.append(f"[{t['table_name']}] {cols}")
+    return "\n".join(lines)
+    
 
 if __name__ == "__main__":
     mcp.run(transport="stdio")

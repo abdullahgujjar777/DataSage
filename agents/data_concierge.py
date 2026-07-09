@@ -41,6 +41,8 @@ def _get_llm() -> ChatOpenAI:
     )
 
 
+
+
 def _format_table_full(t: dict) -> str:
     cols = ", ".join(f"{c['column']}({c['meaning']})" for c in t["column_meanings"])
     rel = t.get("relationships", "").strip()
@@ -188,20 +190,29 @@ def _build_messages(system_content, history, question):
 
 
 # SQL safety + execution
-def _is_safe_sql(sql: str) -> bool:
+def _is_safe_sql(sql: str) -> tuple[bool, str]:
+    """
+    Returns (is_safe, rejection_reason).
+    Uses word-boundary regex so table/column names that happen to contain
+    forbidden keywords as substrings (e.g. ORDEREXECUTIONS ⊃ EXEC) are not
+    falsely rejected.
+    """
     cleaned = sql.strip().lstrip("(").upper()
-    # Allow CTEs: WITH ... AS (...) SELECT ...
+
     if cleaned.startswith("WITH"):
-        # Must eventually resolve to a SELECT, not a mutation
-        pass
+        pass  # CTEs are fine as long as the body resolves to a SELECT
     elif not cleaned.startswith("SELECT"):
-        return False
+        return False, "statement does not begin with SELECT"
+
     forbidden = [
         "INSERT", "UPDATE", "DELETE", "DROP", "ALTER",
         "CREATE", "TRUNCATE", "GRANT", "REVOKE", "EXEC", "COPY",
     ]
-    return not any(kw in cleaned for kw in forbidden)
+    for kw in forbidden:
+        if re.search(rf"\b{kw}\b", cleaned):
+            return False, f"contains forbidden keyword '{kw}'"
 
+    return True, ""
 
 def _enforce_limit(sql: str, cap: int = 100) -> str:
     sql = sql.strip().rstrip(";").strip()
@@ -287,10 +298,11 @@ def ask_question(
 
         results = None
         if sql:
-            if _is_safe_sql(sql):
+            safe, reason = _is_safe_sql(sql)
+            if safe:
                 results = _execute_sql(sql)
             else:
-                results = "⚠️ Unsafe SQL rejected (non-SELECT statement)."
+                results = f"⚠️ SQL rejected: {reason}."
 
         output.append({
             "mode":    entry.get("mode", "A"),

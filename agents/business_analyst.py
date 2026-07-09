@@ -44,6 +44,15 @@ Work in two passes, in order.
    diluted by cross-table comparison.
 2. Cross-table audit: go through <cross_table_column_collisions> line by line and add the
    corresponding ambiguity_flags entries to the tables involved.
+3. Component-total audit: for each table with 3+ numeric columns, check the sample rows.
+   If any column's values equal the sum of two or more other columns across ALL sample rows
+   (within floating-point rounding), state this explicitly in the relevant column_meanings.
+   Example: if wallet_total = available + frozen in every row, then:
+     wallet_total meaning → "Total wallet value; equals available + frozen."
+     available meaning    → "Available sub-component of walletsum."
+     frozen meaning       → "Frozen sub-component of walletsum."
+   This prevents downstream tools from double-counting by summing sub-components and totals
+   together.   
 </process>
  
 <rules>
@@ -93,6 +102,12 @@ Work in two passes, in order.
  
 - Return exactly one TableAnalysis per table listed in <tables>, same order, same table_name.
   Do not merge, omit, or invent tables.
+
+- component_totals: Never leave implicit a numeric column that is the sum of others in the
+  same table. If sample data reveals col_a + col_b ≈ col_total across all rows, the
+  column_meanings for col_total must say "total of col_a and col_b", and the meanings for
+  col_a and col_b must each say "sub-component of col_total". This is mandatory — not
+  optional — when the relationship is detectable from the sample.  
 </rules>
  
 <example>
