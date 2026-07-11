@@ -4,7 +4,10 @@ DataSage — Streamlit UI
 Covers Module 6: connect, scan, documentation, and chat.
 Module 7: PII masking toggle wired through to snapshot collection.
 """
-
+import streamlit as st
+import os
+for k, v in st.secrets.items():
+    os.environ[k] = v
 import os
 import json
 import streamlit as st
